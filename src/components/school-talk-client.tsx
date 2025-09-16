@@ -68,6 +68,7 @@ import {
   XCircle,
   PlusCircle,
 } from "lucide-react";
+import { RadioGroup, RadioGroupItem } from "./ui/radio-group";
 
 const FormSchema = z.object({
   studentCode: z
@@ -210,9 +211,12 @@ export function SchoolTalkClient() {
       });
       return;
     }
+    const date = new Date().toLocaleDateString();
+    const messageWithDate = `[${date}] ${message}`;
+
     const url = `https://wa.me/${
       foundStudent.parentWhatsApp
-    }?text=${encodeURIComponent(message)}`;
+    }?text=${encodeURIComponent(messageWithDate)}`;
     window.open(url, "_blank");
   };
   
@@ -222,6 +226,27 @@ export function SchoolTalkClient() {
     if (lowerTone.includes("negative")) return <Frown className="text-red-600" />;
     if (lowerTone.includes("neutral")) return <Meh className="text-yellow-600" />;
     return <AlertTriangle className="text-gray-500" />;
+  };
+
+  const handleHomeworkMarkChange = (index: number, mark: string) => {
+    if (!foundStudent) return;
+    const updatedStudent = { ...foundStudent };
+    updatedStudent.homework[index].mark = mark;
+    setFoundStudent(updatedStudent);
+  };
+
+  const handleQuizMarkChange = (index: number, mark: string) => {
+    if (!foundStudent) return;
+    const updatedStudent = { ...foundStudent };
+    updatedStudent.quizzes[index].mark = mark;
+    setFoundStudent(updatedStudent);
+  };
+  
+  const handleAttendanceChange = (index: number, status: 'Late' | 'On Time') => {
+    if (!foundStudent) return;
+    const updatedStudent = { ...foundStudent };
+    updatedStudent.attendance[index].status = status;
+    setFoundStudent(updatedStudent);
   };
 
   return (
@@ -385,6 +410,7 @@ export function SchoolTalkClient() {
                       <TableHead>Task</TableHead>
                       <TableHead>Due Date</TableHead>
                       <TableHead>Status</TableHead>
+                      <TableHead>Mark</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -400,6 +426,14 @@ export function SchoolTalkClient() {
                             {hw.completed ? "Completed" : "Pending"}
                           </Badge>
                         </TableCell>
+                        <TableCell>
+                            <Input
+                                value={hw.mark ?? ''}
+                                onChange={(e) => handleHomeworkMarkChange(i, e.target.value)}
+                                placeholder="Add mark"
+                                className="w-28"
+                            />
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -413,6 +447,7 @@ export function SchoolTalkClient() {
                       <TableHead>Topic</TableHead>
                       <TableHead>Date</TableHead>
                       <TableHead>Score</TableHead>
+                      <TableHead>Mark</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -423,6 +458,14 @@ export function SchoolTalkClient() {
                         <TableCell>{quiz.date}</TableCell>
                         <TableCell>
                           {quiz.score !== null ? `${quiz.score}%` : "N/A"}
+                        </TableCell>
+                        <TableCell>
+                            <Input
+                                value={quiz.mark ?? ''}
+                                onChange={(e) => handleQuizMarkChange(i, e.target.value)}
+                                placeholder="Add mark"
+                                className="w-28"
+                            />
                         </TableCell>
                       </TableRow>
                     ))}
@@ -442,9 +485,20 @@ export function SchoolTalkClient() {
                       <TableRow key={i}>
                         <TableCell>{att.date}</TableCell>
                         <TableCell>
-                           <Badge variant={att.status === 'Present' ? 'secondary' : (att.status === 'Absent' ? 'destructive' : 'default')}>
-                            {att.status}
-                          </Badge>
+                           <RadioGroup
+                             value={att.status}
+                             onValueChange={(value: 'Late' | 'On Time') => handleAttendanceChange(i, value)}
+                             className="flex space-x-4"
+                           >
+                             <div className="flex items-center space-x-2">
+                               <RadioGroupItem value="On Time" id={`on-time-${i}`} />
+                               <Label htmlFor={`on-time-${i}`}>On Time</Label>
+                             </div>
+                             <div className="flex items-center space-x-2">
+                               <RadioGroupItem value="Late" id={`late-${i}`} />
+                               <Label htmlFor={`late-${i}`}>Late</Label>
+                             </div>
+                           </RadioGroup>
                         </TableCell>
                       </TableRow>
                     ))}
