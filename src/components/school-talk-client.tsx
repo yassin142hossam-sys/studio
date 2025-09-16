@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
@@ -36,12 +36,20 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { students } from "@/lib/data";
+import { students as initialStudents } from "@/lib/data";
 import type { Student } from "@/lib/types";
 import {
   checkMessageTone,
   type CheckMessageToneOutput,
 } from "@/ai/flows/check-message-tone";
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogDescription,
+    DialogFooter,
+  } from "@/components/ui/dialog";
 import {
   Search,
   User,
@@ -58,6 +66,7 @@ import {
   Meh,
   CheckCircle,
   XCircle,
+  PlusCircle,
 } from "lucide-react";
 
 const FormSchema = z.object({
@@ -65,6 +74,12 @@ const FormSchema = z.object({
     .string()
     .min(1, { message: "Student code cannot be empty." })
     .max(10, { message: "Student code is too long." }),
+});
+
+const AddStudentSchema = z.object({
+    code: z.string().min(1, "Code is required."),
+    name: z.string().min(1, "Name is required."),
+    parentWhatsApp: z.string().min(10, "A valid WhatsApp number is required."),
 });
 
 export function SchoolTalkClient() {
@@ -75,13 +90,48 @@ export function SchoolTalkClient() {
     useState<CheckMessageToneOutput | null>(null);
   const [isCheckingTone, setIsCheckingTone] = useState(false);
   const [isLoadingStudent, setIsLoadingStudent] = useState(false);
+  const [teacherWhatsapp, setTeacherWhatsapp] = useState("");
+  const [showWhatsappModal, setShowWhatsappModal] = useState(false);
+  const [students, setStudents] = useState<Student[]>(initialStudents);
+  const [isAddingStudent, setIsAddingStudent] = useState(false);
+
+  useEffect(() => {
+    const storedWhatsapp = localStorage.getItem("teacherWhatsapp");
+    if (storedWhatsapp) {
+      setTeacherWhatsapp(storedWhatsapp);
+    } else {
+      setShowWhatsappModal(true);
+    }
+  }, []);
+
+  const handleSaveWhatsapp = () => {
+    if (teacherWhatsapp.length >= 10) {
+      localStorage.setItem("teacherWhatsapp", teacherWhatsapp);
+      setShowWhatsappModal(false);
+      toast({
+        title: "WhatsApp Number Saved",
+        description: "Your WhatsApp number has been saved successfully.",
+      });
+    } else {
+      toast({
+        variant: "destructive",
+        title: "Invalid Number",
+        description: "Please enter a valid WhatsApp number.",
+      });
+    }
+  };
 
   const form = useForm<z.infer<typeof FormSchema>>({
     resolver: zodResolver(FormSchema),
     defaultValues: { studentCode: "" },
   });
 
-  function onSubmit(data: z.infer<typeof FormSchema>) {
+  const addStudentForm = useForm<z.infer<typeof AddStudentSchema>>({
+    resolver: zodResolver(AddStudentSchema),
+    defaultValues: { code: "", name: "", parentWhatsApp: "" },
+  });
+
+  function onStudentSearch(data: z.infer<typeof FormSchema>) {
     setIsLoadingStudent(true);
     // Simulate API call
     setTimeout(() => {
@@ -101,6 +151,26 @@ export function SchoolTalkClient() {
         });
       }
       setIsLoadingStudent(false);
+    }, 500);
+  }
+
+  function onAddStudent(data: z.infer<typeof AddStudentSchema>) {
+    setIsAddingStudent(true);
+    setTimeout(() => {
+        const newStudent: Student = {
+            id: (students.length + 1).toString(),
+            ...data,
+            homework: [],
+            quizzes: [],
+            attendance: [],
+        };
+        setStudents([...students, newStudent]);
+        toast({
+            title: "Student Added",
+            description: `${data.name} has been added to the list.`,
+        });
+        addStudentForm.reset();
+        setIsAddingStudent(false);
     }, 500);
   }
 
@@ -156,6 +226,26 @@ export function SchoolTalkClient() {
 
   return (
     <div className="space-y-8">
+        <Dialog open={showWhatsappModal} onOpenChange={setShowWhatsappModal}>
+            <DialogContent>
+            <DialogHeader>
+                <DialogTitle>Enter Your WhatsApp Number</DialogTitle>
+                <DialogDescription>
+                Please enter your WhatsApp number to send messages to parents. This will be stored locally on your device.
+                </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+                <Input
+                placeholder="Your WhatsApp Number"
+                value={teacherWhatsapp}
+                onChange={(e) => setTeacherWhatsapp(e.target.value)}
+                />
+            </div>
+            <DialogFooter>
+                <Button onClick={handleSaveWhatsapp}>Save Number</Button>
+            </DialogFooter>
+            </DialogContent>
+      </Dialog>
       <Card className="overflow-hidden">
         <CardHeader>
           <CardTitle>Find Student</CardTitle>
@@ -165,7 +255,7 @@ export function SchoolTalkClient() {
         </CardHeader>
         <CardContent>
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="flex gap-4">
+            <form onSubmit={form.handleSubmit(onStudentSearch)} className="flex gap-4">
               <FormField
                 control={form.control}
                 name="studentCode"
@@ -193,6 +283,68 @@ export function SchoolTalkClient() {
               </Button>
             </form>
           </Form>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Add New Student</CardTitle>
+          <CardDescription>
+            Add a new student to the records.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+            <Form {...addStudentForm}>
+                <form onSubmit={addStudentForm.handleSubmit(onAddStudent)} className="space-y-4">
+                    <FormField
+                        control={addStudentForm.control}
+                        name="code"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Student Code</FormLabel>
+                                <FormControl>
+                                    <Input placeholder="e.g., ST004" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                    <FormField
+                        control={addStudentForm.control}
+                        name="name"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Student Name</FormLabel>
+                                <FormControl>
+                                    <Input placeholder="e.g., John Doe" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                    <FormField
+                        control={addStudentForm.control}
+                        name="parentWhatsApp"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Parent's WhatsApp Number</FormLabel>
+                                <FormControl>
+                                    <Input placeholder="e.g., 1234567890" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                    <Button type="submit" disabled={isAddingStudent}>
+                        {isAddingStudent ? (
+                        <LoaderCircle className="animate-spin" />
+                        ) : (
+                        <PlusCircle />
+                        )}
+                        <span className="ml-2">Add Student</span>
+                    </Button>
+                </form>
+            </Form>
         </CardContent>
       </Card>
 
