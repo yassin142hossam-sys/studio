@@ -43,6 +43,9 @@ import {
   type CheckMessageToneOutput,
 } from "@/ai/flows/check-message-tone";
 import {
+    generateMessageFromData
+} from "@/ai/flows/generate-message-from-data";
+import {
     Dialog,
     DialogContent,
     DialogHeader,
@@ -67,6 +70,7 @@ import {
   CheckCircle,
   XCircle,
   PlusCircle,
+  MessageSquarePlus,
 } from "lucide-react";
 import { RadioGroup, RadioGroupItem } from "./ui/radio-group";
 
@@ -90,6 +94,7 @@ export function SchoolTalkClient() {
   const [toneAnalysis, setToneAnalysis] =
     useState<CheckMessageToneOutput | null>(null);
   const [isCheckingTone, setIsCheckingTone] = useState(false);
+  const [isGeneratingMessage, setIsGeneratingMessage] = useState(false);
   const [isLoadingStudent, setIsLoadingStudent] = useState(false);
   const [teacherWhatsapp, setTeacherWhatsapp] = useState("");
   const [showWhatsappModal, setShowWhatsappModal] = useState(false);
@@ -198,6 +203,26 @@ export function SchoolTalkClient() {
       });
     } finally {
       setIsCheckingTone(false);
+    }
+  };
+
+  const handleGenerateMessage = async () => {
+    if (!foundStudent) return;
+    setIsGeneratingMessage(true);
+    setMessage("");
+    setToneAnalysis(null);
+    try {
+      const result = await generateMessageFromData({ student: foundStudent });
+      setMessage(result.message);
+    } catch (error) {
+        console.error("Error generating message:", error);
+        toast({
+            variant: "destructive",
+            title: "AI Error",
+            description: "Could not generate a message.",
+        });
+    } finally {
+        setIsGeneratingMessage(false);
     }
   };
 
@@ -520,18 +545,31 @@ export function SchoolTalkClient() {
           </CardHeader>
           <CardContent>
             <Textarea
-              placeholder="Type your message here..."
+              placeholder={isGeneratingMessage ? "AI is generating a message..." : "Type your message here..."}
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               rows={6}
               className="text-base"
+              disabled={isGeneratingMessage}
             />
           </CardContent>
           <CardFooter className="flex flex-wrap justify-end gap-4">
             <Button
+                variant="outline"
+                onClick={handleGenerateMessage}
+                disabled={isGeneratingMessage || isCheckingTone}
+            >
+                {isGeneratingMessage ? (
+                    <LoaderCircle className="animate-spin" />
+                ) : (
+                    <MessageSquarePlus />
+                )}
+                <span className="ml-2">Generate Message</span>
+            </Button>
+            <Button
               variant="outline"
               onClick={handleCheckTone}
-              disabled={isCheckingTone}
+              disabled={isCheckingTone || isGeneratingMessage}
             >
               {isCheckingTone ? (
                 <LoaderCircle className="animate-spin" />
