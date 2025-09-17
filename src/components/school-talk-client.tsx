@@ -22,10 +22,10 @@ import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
-  CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle,
+  CardDescription,
+  CardFooter
 } from "@/components/ui/card";
 import {
   Form,
@@ -52,6 +52,15 @@ import {
     AlertDialogTrigger,
   } from "@/components/ui/alert-dialog";
 import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
+    DialogClose
+  } from "@/components/ui/dialog";
+import {
   Search,
   User as UserIcon,
   Phone,
@@ -63,8 +72,10 @@ import {
   CalendarDays,
   Trash2,
   LogOut,
+  KeyRound,
 } from "lucide-react";
 import { RadioGroup, RadioGroupItem } from "./ui/radio-group";
+import { ChangePasswordForm } from "./change-password-form";
 
 const StudentSearchSchema = z.object({
   studentCode: z
@@ -94,6 +105,7 @@ export function SchoolTalkClient() {
   const [isLoadingStudents, setIsLoadingStudents] = useState(false);
   const [isAddingStudent, setIsAddingStudent] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
+  const [isPasswordChangeOpen, setIsPasswordChangeOpen] = useState(false);
 
 
   useEffect(() => {
@@ -297,6 +309,22 @@ export function SchoolTalkClient() {
                   </CardDescription>
               </div>
               <div className="flex flex-col sm:flex-row gap-2">
+                <Dialog open={isPasswordChangeOpen} onOpenChange={setIsPasswordChangeOpen}>
+                    <DialogTrigger asChild>
+                        <Button variant="outline">
+                            <KeyRound /> <span className="hidden sm:inline ml-2">Change Password</span>
+                        </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                        <DialogHeader>
+                            <DialogTitle>Change Password</DialogTitle>
+                            <DialogDescription>
+                                Enter a new password for your shared account.
+                            </DialogDescription>
+                        </DialogHeader>
+                        <ChangePasswordForm onPasswordChanged={() => setIsPasswordChangeOpen(false)} />
+                    </DialogContent>
+                </Dialog>
                 <Button variant="outline" onClick={handleLogout}>
                     <LogOut /> <span className="hidden sm:inline ml-2">Sign Out</span>
                 </Button>
