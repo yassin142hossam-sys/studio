@@ -196,7 +196,7 @@ export function CustomAuth({ onLoginSuccess }: CustomAuthProps) {
                         <FormItem>
                           <FormLabel>4-Digit Code</FormLabel>
                           <FormControl>
-                            <Input type="password" maxLength={4} placeholder="1234" {...field} />
+                            <Input type="text" inputMode="numeric" maxLength={4} placeholder="1234" {...field} />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -231,7 +231,7 @@ export function CustomAuth({ onLoginSuccess }: CustomAuthProps) {
                         <FormItem>
                           <FormLabel>New 4-Digit Code</FormLabel>
                           <FormControl>
-                            <Input type="password" maxLength={4} placeholder="e.g., 1234" {...field} />
+                            <Input type="text" inputMode="numeric" maxLength={4} placeholder="e.g., 1234" {...field} />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
