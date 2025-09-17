@@ -5,6 +5,18 @@ import { useState, useEffect } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
+import { useAuthState } from "react-firebase-hooks/auth";
+import { auth, db } from "@/lib/firebase-config";
+import {
+  collection,
+  addDoc,
+  query,
+  where,
+  getDocs,
+  doc,
+  deleteDoc,
+  writeBatch,
+} from "firebase/firestore";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -27,14 +39,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import type { Student } from "@/lib/types";
-import {
-    Dialog,
-    DialogContent,
-    DialogHeader,
-    DialogTitle,
-    DialogDescription,
-    DialogFooter,
-  } from "@/components/ui/dialog";
+import { PhoneAuth } from "@/components/phone-auth";
 import {
     AlertDialog,
     AlertDialogAction,
@@ -58,9 +63,9 @@ import {
   CalendarDays,
   Trash2,
   LogOut,
-  ArrowRightLeft,
 } from "lucide-react";
 import { RadioGroup, RadioGroupItem } from "./ui/radio-group";
+import { signOut } from "firebase/auth";
 
 const StudentSearchSchema = z.object({
   studentCode: z
@@ -81,117 +86,57 @@ const MessageFormSchema = z.object({
     attendance: z.enum(["On Time", "Late"]).optional(),
 });
 
-const TransferStudentsSchema = z.object({
-    fromNumber: z.string().min(10, "A valid WhatsApp number is required."),
-});
-
-
 export function SchoolTalkClient() {
   const { toast } = useToast();
-  const [foundStudent, setFoundStudent] = useState<Student | null>(null);
-  const [isLoadingStudent, setIsLoadingStudent] = useState(false);
-  const [teacherWhatsapp, setTeacherWhatsapp] = useState("");
-  const [previousTeacherWhatsapp, setPreviousTeacherWhatsapp] = useState("");
-  const [showWhatsappModal, setShowWhatsappModal] = useState(false);
-  const [showTransferModal, setShowTransferModal] = useState(false);
-  const [showNewNumberAlert, setShowNewNumberAlert] = useState(false);
-  const [newNumber, setNewNumber] = useState("");
+  const [user, loadingAuth] = useAuthState(auth);
   const [students, setStudents] = useState<Student[]>([]);
+  const [foundStudent, setFoundStudent] = useState<Student | null>(null);
+  const [isLoadingStudents, setIsLoadingStudents] = useState(true);
   const [isAddingStudent, setIsAddingStudent] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
 
-  // Load teacher's number and their students from localStorage
+
+  // Fetch students from Firestore when user is authenticated
   useEffect(() => {
-    const storedWhatsapp = localStorage.getItem("teacherWhatsapp");
-    if (storedWhatsapp) {
-      setTeacherWhatsapp(storedWhatsapp);
-      const allStudentsData = JSON.parse(localStorage.getItem("allStudents") || "{}");
-      setStudents(allStudentsData[storedWhatsapp] || []);
-    } else {
-      setShowWhatsappModal(true);
-    }
-  }, []);
-
-  // Effect to save students to localStorage whenever the list changes
-  useEffect(() => {
-    if (teacherWhatsapp) {
-      const allStudentsData = JSON.parse(localStorage.getItem("allStudents") || "{}");
-      allStudentsData[teacherWhatsapp] = students;
-      localStorage.setItem("allStudents", JSON.stringify(allStudentsData));
-    }
-  }, [students, teacherWhatsapp]);
-
-  const handleSaveWhatsapp = (numberToSave: string) => {
-    if (numberToSave.length >= 10) {
-        const allStudentsData = JSON.parse(localStorage.getItem("allStudents") || "{}");
-        
-        if (allStudentsData[numberToSave]) {
-            // Number exists, sign in to this account
-            setTeacherWhatsapp(numberToSave);
-            setStudents(allStudentsData[numberToSave]);
-            localStorage.setItem("teacherWhatsapp", numberToSave);
-            setShowWhatsappModal(false);
-            toast({
-                title: "Account Switched",
-                description: `Signed in to account for ...${numberToSave.slice(-4)}.`,
-            });
-        } else {
-            // This is a new number
-            setNewNumber(numberToSave);
-            if (teacherWhatsapp) {
-                // We are changing from an existing number, ask to transfer
-                setPreviousTeacherWhatsapp(teacherWhatsapp);
-                setShowNewNumberAlert(true);
-            } else {
-                // First time setup
-                switchAccount(numberToSave, false);
-            }
+    if (user) {
+      const fetchStudents = async () => {
+        setIsLoadingStudents(true);
+        try {
+          const studentsCollection = collection(db, "teachers", user.uid, "students");
+          const studentSnapshot = await getDocs(studentsCollection);
+          const studentList = studentSnapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+          } as Student));
+          setStudents(studentList);
+        } catch (error) {
+          console.error("Error fetching students:", error);
+          toast({
+            variant: "destructive",
+            title: "Error",
+            description: "Could not fetch student data.",
+          });
         }
+        setIsLoadingStudents(false);
+      };
+
+      fetchStudents();
     } else {
-      toast({
-        variant: "destructive",
-        title: "Invalid Number",
-        description: "Please enter a valid WhatsApp number.",
-      });
+      // Clear students when user logs out
+      setStudents([]);
+      setFoundStudent(null);
+      setIsLoadingStudents(false);
     }
+  }, [user, toast]);
+
+
+  const handleLogout = async () => {
+    await signOut(auth);
+    toast({
+        title: "Signed Out",
+        description: "You have been successfully signed out.",
+    });
   };
-
-  const switchAccount = (newNumber: string, transfer: boolean) => {
-    const allStudentsData = JSON.parse(localStorage.getItem("allStudents") || "{}");
-    let studentsToSet = [];
-
-    if (transfer && previousTeacherWhatsapp && allStudentsData[previousTeacherWhatsapp]) {
-        studentsToSet = allStudentsData[previousTeacherWhatsapp];
-        allStudentsData[newNumber] = studentsToSet;
-        delete allStudentsData[previousTeacherWhatsapp]; // Move data
-        toast({
-            title: "Account and Data Transferred",
-            description: `Moved student data to new number ...${newNumber.slice(-4)}.`,
-        });
-    } else {
-        toast({
-            title: "New Account Created",
-            description: `Your new WhatsApp number ...${newNumber.slice(-4)} has been saved.`,
-        });
-    }
-
-    setTeacherWhatsapp(newNumber);
-    setStudents(studentsToSet);
-    localStorage.setItem("teacherWhatsapp", newNumber);
-    localStorage.setItem("allStudents", JSON.stringify(allStudentsData));
-    
-    setShowWhatsappModal(false);
-    setShowNewNumberAlert(false);
-    setNewNumber("");
-    setPreviousTeacherWhatsapp("");
-  }
-  
-  const handleLogout = () => {
-    setPreviousTeacherWhatsapp(teacherWhatsapp);
-    setTeacherWhatsapp("");
-    setFoundStudent(null);
-    setStudents([]);
-    setShowWhatsappModal(true);
-  }
 
   const studentSearchForm = useForm<z.infer<typeof StudentSearchSchema>>({
     resolver: zodResolver(StudentSearchSchema),
@@ -211,38 +156,47 @@ export function SchoolTalkClient() {
     }
   });
 
-  const transferStudentsForm = useForm<z.infer<typeof TransferStudentsSchema>>({
-    resolver: zodResolver(TransferStudentsSchema),
-    defaultValues: { fromNumber: "" },
-  });
 
+  async function onStudentSearch(data: z.infer<typeof StudentSearchSchema>) {
+    if (!user) return;
+    setIsSearching(true);
+    
+    try {
+        const studentsCollection = collection(db, "teachers", user.uid, "students");
+        const q = query(studentsCollection, where("code", "==", data.studentCode.toLowerCase()));
+        const querySnapshot = await getDocs(q);
 
-  function onStudentSearch(data: z.infer<typeof StudentSearchSchema>) {
-    setIsLoadingStudent(true);
-    // Simulate API call
-    setTimeout(() => {
-      const student = students.find(
-        (s) => s.code.toLowerCase() === data.studentCode.toLowerCase()
-      );
-      if (student) {
-        setFoundStudent(student);
-        messageForm.reset({ homework: "", quiz: "", attendance: undefined });
-      } else {
-        setFoundStudent(null);
-        toast({
-          variant: "destructive",
-          title: "Student Not Found",
-          description: "No student found with that code. Please try again.",
-        });
-      }
-      setIsLoadingStudent(false);
-    }, 500);
+        if (!querySnapshot.empty) {
+            const studentDoc = querySnapshot.docs[0];
+            const found = { id: studentDoc.id, ...studentDoc.data() } as Student;
+            setFoundStudent(found);
+            messageForm.reset({ homework: "", quiz: "", attendance: undefined });
+        } else {
+            setFoundStudent(null);
+            toast({
+            variant: "destructive",
+            title: "Student Not Found",
+            description: "No student found with that code. Please try again.",
+            });
+        }
+    } catch(error) {
+        console.error("Error searching for student:", error);
+        toast({ variant: "destructive", title: "Search Error", description: "An error occurred while searching." });
+    }
+    setIsSearching(false);
   }
 
-  function onAddStudent(data: z.infer<typeof AddStudentSchema>) {
+  async function onAddStudent(data: z.infer<typeof AddStudentSchema>) {
+    if (!user) return;
     setIsAddingStudent(true);
-    setTimeout(() => {
-        if (students.some(s => s.code.toLowerCase() === data.code.toLowerCase())) {
+
+    try {
+        // Check for duplicate code
+        const studentsCollection = collection(db, "teachers", user.uid, "students");
+        const q = query(studentsCollection, where("code", "==", data.code.toLowerCase()));
+        const querySnapshot = await getDocs(q);
+        
+        if (!querySnapshot.empty) {
             toast({
                 variant: "destructive",
                 title: "Student Code Exists",
@@ -252,62 +206,42 @@ export function SchoolTalkClient() {
             return;
         }
 
-        const newStudent: Student = {
-            id: (students.length + 1).toString(),
+        const newStudentData = {
             ...data,
-            homework: [],
-            quizzes: [],
-            attendance: [],
+            code: data.code.toLowerCase(), // store code in lowercase for case-insensitive search
         };
+
+        const docRef = await addDoc(studentsCollection, newStudentData);
+        
+        const newStudent: Student = { id: docRef.id, ...newStudentData };
         setStudents([...students, newStudent]);
+        
         toast({
             title: "Student Added",
             description: `${data.name} has been added to your account.`,
         });
         addStudentForm.reset();
-        setIsAddingStudent(false);
-    }, 500);
-  }
 
-  function onDeleteStudent(studentId: string) {
-    setStudents(students.filter(s => s.id !== studentId));
-    setFoundStudent(null);
-    toast({
-        title: "Student Deleted",
-        description: "The student has been removed from your account.",
-    });
-  }
-
-  function onTransferStudents(data: z.infer<typeof TransferStudentsSchema>) {
-    const allStudentsData = JSON.parse(localStorage.getItem("allStudents") || "{}");
-    const { fromNumber } = data;
-
-    if (fromNumber === teacherWhatsapp) {
-        toast({ variant: "destructive", title: "Cannot transfer from current account." });
-        return;
+    } catch(error) {
+        console.error("Error adding student:", error);
+        toast({ variant: "destructive", title: "Error", description: "Could not add student." });
     }
+    setIsAddingStudent(false);
+  }
 
-    if (allStudentsData[fromNumber]) {
-        const studentsFromOtherAccount = allStudentsData[fromNumber];
-        const currentStudentCodes = new Set(students.map(s => s.code.toLowerCase()));
-        
-        // Filter out students that would cause a code collision
-        const newStudents = studentsFromOtherAccount.filter((s: Student) => !currentStudentCodes.has(s.code.toLowerCase()));
-        const skippedCount = studentsFromOtherAccount.length - newStudents.length;
-
-        setStudents([...students, ...newStudents]);
-        delete allStudentsData[fromNumber]; // Remove old account data
-        localStorage.setItem("allStudents", JSON.stringify(allStudentsData));
-
+  async function onDeleteStudent(studentId: string) {
+    if(!user) return;
+    try {
+        await deleteDoc(doc(db, "teachers", user.uid, "students", studentId));
+        setStudents(students.filter(s => s.id !== studentId));
+        setFoundStudent(null);
         toast({
-            title: "Transfer Complete",
-            description: `${newStudents.length} students transferred. ${skippedCount > 0 ? `${skippedCount} students skipped due to duplicate codes.` : ""}`,
+            title: "Student Deleted",
+            description: "The student has been removed from your account.",
         });
-        setShowTransferModal(false);
-        transferStudentsForm.reset();
-
-    } else {
-        toast({ variant: "destructive", title: "Account Not Found", description: "No students found for that WhatsApp number." });
+    } catch (error) {
+        console.error("Error deleting student:", error);
+        toast({ variant: "destructive", title: "Error", description: "Could not delete student." });
     }
   }
 
@@ -335,102 +269,36 @@ export function SchoolTalkClient() {
     const url = `whatsapp://send?phone=${foundStudent.parentWhatsApp}&text=${encodeURIComponent(message)}`;
     window.open(url, "_blank");
   };
+
+  if (loadingAuth) {
+    return (
+        <div className="flex justify-center items-center h-64">
+            <LoaderCircle className="animate-spin text-primary" size={48} />
+        </div>
+    );
+  }
   
-  const [whatsappInputValue, setWhatsappInputValue] = useState("");
-  useEffect(() => {
-    setWhatsappInputValue(previousTeacherWhatsapp);
-  }, [previousTeacherWhatsapp]);
+  if (!user) {
+    return <PhoneAuth />;
+  }
 
   return (
     <div className="space-y-8">
-        <Dialog open={showWhatsappModal} onOpenChange={(isOpen) => { if (!isOpen && !teacherWhatsapp) { setShowWhatsappModal(true) } else { setShowWhatsappModal(isOpen) }}}>
-            <DialogContent onOpenAutoFocus={(e) => e.preventDefault()}>
-            <DialogHeader>
-                <DialogTitle>Enter Your WhatsApp Number</DialogTitle>
-                <DialogDescription>
-                This number will act as your account. Students you add will be saved under this number.
-                </DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-4 py-4">
-                <Input
-                placeholder="Your WhatsApp Number"
-                value={whatsappInputValue}
-                onChange={(e) => setWhatsappInputValue(e.target.value)}
-                />
-            </div>
-            <DialogFooter>
-                <Button onClick={() => handleSaveWhatsapp(whatsappInputValue)}>Save and Continue</Button>
-            </DialogFooter>
-            </DialogContent>
-      </Dialog>
+
+      <Card>
+          <CardHeader className="flex-row justify-between items-center">
+              <div>
+                  <CardTitle>Teacher Account</CardTitle>
+                  <CardDescription>
+                      Signed in as {user.phoneNumber}
+                  </CardDescription>
+              </div>
+              <Button variant="outline" onClick={handleLogout}>
+                  <LogOut /> <span className="hidden sm:inline ml-2">Sign Out</span>
+              </Button>
+          </CardHeader>
+      </Card>
       
-      <AlertDialog open={showNewNumberAlert} onOpenChange={setShowNewNumberAlert}>
-        <AlertDialogContent>
-            <AlertDialogHeader>
-            <AlertDialogTitle>New Number Detected</AlertDialogTitle>
-            <AlertDialogDescription>
-                It looks like this is a new number. Do you want to transfer your existing students from ...{previousTeacherWhatsapp.slice(-4)} to this new number ...{newNumber.slice(-4)}?
-            </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-            <Button variant="outline" onClick={() => switchAccount(newNumber, false)}>No, Start Fresh</Button>
-            <Button onClick={() => switchAccount(newNumber, true)}>Yes, Transfer Data</Button>
-            </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      <Dialog open={showTransferModal} onOpenChange={setShowTransferModal}>
-            <DialogContent>
-                <DialogHeader>
-                    <DialogTitle>Transfer Students</DialogTitle>
-                    <DialogDescription>
-                        Enter another WhatsApp number to transfer all its students to your current account. The other account will be deleted after transfer.
-                    </DialogDescription>
-                </DialogHeader>
-                <Form {...transferStudentsForm}>
-                    <form onSubmit={transferStudentsForm.handleSubmit(onTransferStudents)} className="space-y-4 py-4">
-                        <FormField
-                            control={transferStudentsForm.control}
-                            name="fromNumber"
-                            render={({ field }) => (
-                                <FormItem>
-                                    <FormLabel>WhatsApp Number to Transfer From</FormLabel>
-                                    <FormControl>
-                                        <Input placeholder="Enter the old number" {...field} />
-                                    </FormControl>
-                                    <FormMessage />
-                                </FormItem>
-                            )}
-                        />
-                         <DialogFooter>
-                            <Button type="submit">Transfer Students</Button>
-                        </DialogFooter>
-                    </form>
-                </Form>
-            </DialogContent>
-      </Dialog>
-
-      {teacherWhatsapp && (
-        <Card>
-            <CardHeader className="flex-row justify-between items-center">
-                <div>
-                    <CardTitle>Teacher Account</CardTitle>
-                    <CardDescription>
-                        Signed in as ...{teacherWhatsapp.slice(-4)}
-                    </CardDescription>
-                </div>
-                <div className="flex gap-2">
-                    <Button variant="outline" onClick={() => setShowTransferModal(true)}>
-                        <ArrowRightLeft /> <span className="hidden sm:inline ml-2">Transfer</span>
-                    </Button>
-                    <Button variant="outline" onClick={handleLogout}>
-                        <LogOut /> <span className="hidden sm:inline ml-2">Change Account</span>
-                    </Button>
-                </div>
-            </CardHeader>
-        </Card>
-      )}
-
       <Card className="overflow-hidden">
         <CardHeader>
           <CardTitle>Find Student</CardTitle>
@@ -449,7 +317,7 @@ export function SchoolTalkClient() {
                     <FormLabel className="sr-only">Student Code</FormLabel>
                     <FormControl>
                       <Input
-                        placeholder="e.g., ST001"
+                        placeholder="e.g., st001"
                         {...field}
                         className="text-base"
                       />
@@ -458,8 +326,8 @@ export function SchoolTalkClient() {
                   </FormItem>
                 )}
               />
-              <Button type="submit" disabled={isLoadingStudent || !teacherWhatsapp}>
-                {isLoadingStudent ? (
+              <Button type="submit" disabled={isSearching}>
+                {isSearching ? (
                   <LoaderCircle className="animate-spin" />
                 ) : (
                   <Search />
@@ -514,13 +382,13 @@ export function SchoolTalkClient() {
                             <FormItem>
                                 <FormLabel>Parent's WhatsApp Number</FormLabel>
                                 <FormControl>
-                                    <Input placeholder="e.g., 1234567890" {...field} />
+                                    <Input placeholder="e.g., +1234567890" {...field} />
                                 </FormControl>
                                 <FormMessage />
                             </FormItem>
                         )}
                     />
-                    <Button type="submit" disabled={isAddingStudent || !teacherWhatsapp}>
+                    <Button type="submit" disabled={isAddingStudent}>
                         {isAddingStudent ? (
                         <LoaderCircle className="animate-spin" />
                         ) : (
@@ -543,7 +411,7 @@ export function SchoolTalkClient() {
                         </CardTitle>
                         <CardDescription className="flex items-center gap-2 pt-1">
                             <Phone size={16} />
-                            {`Parent's WhatsApp: ...${foundStudent.parentWhatsApp.slice(-4)}`}
+                            {`Parent's WhatsApp: ${foundStudent.parentWhatsApp}`}
                         </CardDescription>
                     </div>
                     <AlertDialog>
@@ -645,6 +513,31 @@ export function SchoolTalkClient() {
           </CardContent>
         </Card>
       )}
+
+      {user && !isLoadingStudents && students.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Your Students</CardTitle>
+            <CardDescription>A list of all students in your account.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ul className="space-y-2">
+              {students.map(s => (
+                <li key={s.id} className="flex justify-between items-center p-2 rounded-md hover:bg-muted">
+                    <div>
+                        <p className="font-semibold">{s.name}</p>
+                        <p className="text-sm text-muted-foreground">Code: {s.code}</p>
+                    </div>
+                    <Button variant="ghost" size="sm" onClick={() => studentSearchForm.handleSubmit(onStudentSearch)({ studentCode: s.code })}>
+                        View
+                    </Button>
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      )}
+
     </div>
   );
 }
