@@ -186,9 +186,7 @@ export function SchoolTalkClient() {
     const date = new Date().toLocaleDateString();
     const message = `Mrs. Hanaa Abdel-Majid\n\n[${date}] Hello, this is an update for ${foundStudent.name}:\n\n- ${messageParts.join('\n- ')}`;
 
-    const url = `https://wa.me/${
-      foundStudent.parentWhatsApp
-    }?text=${encodeURIComponent(message)}`;
+    const url = `whatsapp://send?phone=${foundStudent.parentWhatsApp}&text=${encodeURIComponent(message)}`;
     window.open(url, "_blank");
   };
 
