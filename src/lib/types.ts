@@ -4,8 +4,3 @@ export type Student = {
   name: string;
   parentWhatsApp: string;
 };
-
-export type TeacherAccount = {
-  id: string; // The phone number, also the document ID in Firestore
-  accessCodeHash: string;
-};

@@ -5,7 +5,7 @@ import { useState, useEffect } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
-import { db } from "@/lib/firebase-config";
+import { db, auth } from "@/lib/firebase-config";
 import {
   collection,
   addDoc,
@@ -14,10 +14,9 @@ import {
   getDocs,
   doc,
   deleteDoc,
-  setDoc,
-  getDoc,
-  updateDoc,
+  onSnapshot,
 } from "firebase/firestore";
+import { onAuthStateChanged, signOut, type User } from "firebase/auth";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -39,8 +38,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import type { Student, TeacherAccount } from "@/lib/types";
-import { CustomAuth } from "@/components/custom-auth";
+import type { Student } from "@/lib/types";
+import { EmailPasswordAuth } from "@/components/email-password-auth";
 import {
     AlertDialog,
     AlertDialogAction,
@@ -53,16 +52,8 @@ import {
     AlertDialogTrigger,
   } from "@/components/ui/alert-dialog";
 import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogHeader,
-    DialogTitle,
-    DialogTrigger,
-  } from "@/components/ui/dialog";
-import {
   Search,
-  User,
+  User as UserIcon,
   Phone,
   LoaderCircle,
   Send,
@@ -72,18 +63,8 @@ import {
   CalendarDays,
   Trash2,
   LogOut,
-  KeyRound,
 } from "lucide-react";
 import { RadioGroup, RadioGroupItem } from "./ui/radio-group";
-
-// A simple (non-cryptographic) hash function for the access code
-const simpleHash = async (text: string) => {
-  const buffer = new TextEncoder().encode(text);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-};
-
 
 const StudentSearchSchema = z.object({
   studentCode: z
@@ -104,78 +85,69 @@ const MessageFormSchema = z.object({
     attendance: z.enum(["On Time", "Late"]).optional(),
 });
 
-const ChangeCodeSchema = z.object({
-    newCode: z.string().length(4, "The access code must be 4 digits."),
-});
-
-
 export function SchoolTalkClient() {
   const { toast } = useToast();
-  const [teacher, setTeacher] = useState<TeacherAccount | null>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [loadingAuth, setLoadingAuth] = useState(true);
   const [students, setStudents] = useState<Student[]>([]);
   const [foundStudent, setFoundStudent] = useState<Student | null>(null);
   const [isLoadingStudents, setIsLoadingStudents] = useState(false);
   const [isAddingStudent, setIsAddingStudent] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
-  const [isChangingCode, setIsChangingCode] = useState(false);
-  const [isChangeCodeDialogOpen, setIsChangeCodeDialogOpen] = useState(false);
 
 
   useEffect(() => {
-    // Check local storage for a logged-in teacher
-    const loggedInTeacherPhone = localStorage.getItem('teacherAccount');
-    if (loggedInTeacherPhone) {
-        setTeacher({ id: loggedInTeacherPhone, accessCodeHash: "" }); // hash is not needed here
-    }
-    setLoadingAuth(false);
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+      setLoadingAuth(false);
+    });
+    return () => unsubscribe();
   }, []);
 
-  // Fetch students from Firestore when user is authenticated
   useEffect(() => {
-    if (teacher) {
-      const fetchStudents = async () => {
-        setIsLoadingStudents(true);
-        try {
-          const studentsCollection = collection(db, "teachers", teacher.id, "students");
-          const studentSnapshot = await getDocs(studentsCollection);
-          const studentList = studentSnapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data()
-          } as Student));
-          setStudents(studentList);
-        } catch (error) {
-          console.error("Error fetching students:", error);
-          toast({
-            variant: "destructive",
-            title: "Error",
-            description: "Could not fetch student data.",
-          });
-        }
+    if (user) {
+      setIsLoadingStudents(true);
+      const studentsCollection = collection(db, "teachers", user.uid, "students");
+      const unsubscribe = onSnapshot(studentsCollection, (snapshot) => {
+        const studentList = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        } as Student));
+        setStudents(studentList);
         setIsLoadingStudents(false);
-      };
+      }, (error) => {
+        console.error("Error fetching students:", error);
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Could not fetch student data.",
+        });
+        setIsLoadingStudents(false);
+      });
 
-      fetchStudents();
+      return () => unsubscribe();
     } else {
-      // Clear students when user logs out
       setStudents([]);
       setFoundStudent(null);
-      setIsLoadingStudents(false);
     }
-  }, [teacher, toast]);
+  }, [user, toast]);
 
-  const handleLoginSuccess = (account: TeacherAccount) => {
-    localStorage.setItem('teacherAccount', account.id);
-    setTeacher(account);
+  const handleLoginSuccess = (loggedInUser: User) => {
+    setUser(loggedInUser);
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem('teacherAccount');
-    setTeacher(null);
-    toast({
-        title: "Signed Out",
-        description: "You have been successfully signed out.",
-    });
+  const handleLogout = async () => {
+    try {
+        await signOut(auth);
+        setUser(null);
+        toast({
+            title: "Signed Out",
+            description: "You have been successfully signed out.",
+        });
+    } catch (error) {
+        console.error("Sign out error", error);
+        toast({ variant: "destructive", title: "Error", description: "Failed to sign out." });
+    }
   };
 
   const studentSearchForm = useForm<z.infer<typeof StudentSearchSchema>>({
@@ -196,18 +168,12 @@ export function SchoolTalkClient() {
     }
   });
 
-  const changeCodeForm = useForm<z.infer<typeof ChangeCodeSchema>>({
-    resolver: zodResolver(ChangeCodeSchema),
-    defaultValues: { newCode: "" },
-  });
-
-
   async function onStudentSearch(data: z.infer<typeof StudentSearchSchema>) {
-    if (!teacher) return;
+    if (!user) return;
     setIsSearching(true);
     
     try {
-        const studentsCollection = collection(db, "teachers", teacher.id, "students");
+        const studentsCollection = collection(db, "teachers", user.uid, "students");
         const q = query(studentsCollection, where("code", "==", data.studentCode.toLowerCase()));
         const querySnapshot = await getDocs(q);
 
@@ -232,34 +198,26 @@ export function SchoolTalkClient() {
   }
 
   async function onAddStudent(data: z.infer<typeof AddStudentSchema>) {
-    if (!teacher) return;
+    if (!user) return;
     setIsAddingStudent(true);
 
     try {
-        // Check for duplicate code
-        const studentsCollection = collection(db, "teachers", teacher.id, "students");
+        const studentsCollection = collection(db, "teachers", user.uid, "students");
         const q = query(studentsCollection, where("code", "==", data.code.toLowerCase()));
         const querySnapshot = await getDocs(q);
         
         if (!querySnapshot.empty) {
-            toast({
-                variant: "destructive",
-                title: "Student Code Exists",
-                description: "A student with this code already exists.",
-            });
+            addStudentForm.setError("code", { type: "manual", message: "A student with this code already exists." });
             setIsAddingStudent(false);
             return;
         }
 
         const newStudentData = {
             ...data,
-            code: data.code.toLowerCase(), // store code in lowercase for case-insensitive search
+            code: data.code.toLowerCase(),
         };
 
-        const docRef = await addDoc(studentsCollection, newStudentData);
-        
-        const newStudent: Student = { id: docRef.id, ...newStudentData };
-        setStudents([...students, newStudent]);
+        await addDoc(studentsCollection, newStudentData);
         
         toast({
             title: "Student Added",
@@ -275,10 +233,9 @@ export function SchoolTalkClient() {
   }
 
   async function onDeleteStudent(studentId: string) {
-    if(!teacher) return;
+    if(!user) return;
     try {
-        await deleteDoc(doc(db, "teachers", teacher.id, "students", studentId));
-        setStudents(students.filter(s => s.id !== studentId));
+        await deleteDoc(doc(db, "teachers", user.uid, "students", studentId));
         if(foundStudent?.id === studentId) {
             setFoundStudent(null);
         }
@@ -290,33 +247,6 @@ export function SchoolTalkClient() {
         console.error("Error deleting student:", error);
         toast({ variant: "destructive", title: "Error", description: "Could not delete student." });
     }
-  }
-
-  async function onChangeCode(data: z.infer<typeof ChangeCodeSchema>) {
-    if (!teacher) return;
-    setIsChangingCode(true);
-
-    try {
-        const newCodeHash = await simpleHash(data.newCode);
-        const teacherDocRef = doc(db, "teachers", teacher.id);
-
-        await updateDoc(teacherDocRef, {
-            accessCodeHash: newCodeHash,
-        });
-
-        toast({
-            title: "Access Code Changed",
-            description: "The account access code has been updated.",
-        });
-        changeCodeForm.reset();
-        setIsChangeCodeDialogOpen(false);
-
-    } catch (error) {
-        console.error("Error changing access code:", error);
-        toast({ variant: "destructive", title: "Error", description: "Could not change the access code." });
-    }
-
-    setIsChangingCode(false);
   }
 
   const handleSendWhatsApp = (data: z.infer<typeof MessageFormSchema>) => {
@@ -351,8 +281,8 @@ export function SchoolTalkClient() {
     );
   }
   
-  if (!teacher) {
-    return <CustomAuth onLoginSuccess={handleLoginSuccess} />;
+  if (!user) {
+    return <EmailPasswordAuth onLoginSuccess={handleLoginSuccess} />;
   }
 
   return (
@@ -363,46 +293,10 @@ export function SchoolTalkClient() {
               <div>
                   <CardTitle>Teacher Account</CardTitle>
                   <CardDescription>
-                      Signed in with: {teacher.id}
+                      Signed in as: {user.email}
                   </CardDescription>
               </div>
               <div className="flex flex-col sm:flex-row gap-2">
-                <Dialog open={isChangeCodeDialogOpen} onOpenChange={setIsChangeCodeDialogOpen}>
-                    <DialogTrigger asChild>
-                        <Button variant="outline">
-                            <KeyRound /> <span className="hidden sm:inline ml-2">Change Code</span>
-                        </Button>
-                    </DialogTrigger>
-                    <DialogContent>
-                        <DialogHeader>
-                            <DialogTitle>Change Access Code</DialogTitle>
-                            <DialogDescription>
-                                Enter a new 4-digit access code for this account. All users will need to use this new code to log in.
-                            </DialogDescription>
-                        </DialogHeader>
-                        <Form {...changeCodeForm}>
-                            <form onSubmit={changeCodeForm.handleSubmit(onChangeCode)} className="space-y-4">
-                                <FormField
-                                    control={changeCodeForm.control}
-                                    name="newCode"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel>New 4-Digit Code</FormLabel>
-                                            <FormControl>
-                                                <Input type="password" maxLength={4} placeholder="e.g., 1234" {...field} />
-                                            </FormControl>
-                                            <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
-                                <Button type="submit" className="w-full" disabled={isChangingCode}>
-                                    {isChangingCode && <LoaderCircle className="animate-spin mr-2" />}
-                                    Save New Code
-                                </Button>
-                            </form>
-                        </Form>
-                    </DialogContent>
-                </Dialog>
                 <Button variant="outline" onClick={handleLogout}>
                     <LogOut /> <span className="hidden sm:inline ml-2">Sign Out</span>
                 </Button>
@@ -518,7 +412,7 @@ export function SchoolTalkClient() {
                 <div className="flex justify-between items-start">
                     <div>
                         <CardTitle className="flex items-center gap-2">
-                        <User /> {foundStudent.name}
+                        <UserIcon /> {foundStudent.name}
                         </CardTitle>
                         <CardDescription className="flex items-center gap-2 pt-1">
                             <Phone size={16} />
@@ -625,7 +519,7 @@ export function SchoolTalkClient() {
         </Card>
       )}
 
-      {teacher && !isLoadingStudents && students.length > 0 && (
+      {user && !isLoadingStudents && students.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle>Your Students</CardTitle>
@@ -639,7 +533,10 @@ export function SchoolTalkClient() {
                         <p className="font-semibold">{s.name}</p>
                         <p className="text-sm text-muted-foreground">Code: {s.code}</p>
                     </div>
-                    <Button variant="ghost" size="sm" onClick={() => studentSearchForm.setValue('studentCode', s.code) && studentSearchForm.handleSubmit(onStudentSearch)()}>
+                    <Button variant="ghost" size="sm" onClick={() => {
+                        studentSearchForm.setValue('studentCode', s.code);
+                        studentSearchForm.handleSubmit(onStudentSearch)();
+                    }}>
                         View
                     </Button>
                 </li>
@@ -648,7 +545,6 @@ export function SchoolTalkClient() {
           </CardContent>
         </Card>
       )}
-
     </div>
   );
 }
