@@ -2,14 +2,20 @@ import { initializeApp, getApps, getApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 
+// =================================================================================
+// IMPORTANT: REPLACE THIS WITH YOUR CUSTOMER'S FIREBASE PROJECT CONFIGURATION
+// =================================================================================
 const firebaseConfig = {
-  projectId: "studio-5968331546-377b8",
-  appId: "1:1047403536331:web:430b3bfe40521fd3f4a04e",
-  storageBucket: "studio-5968331546-377b8.firebasestorage.app",
-  apiKey: "AIzaSyCq9z1-rZz28GhEXP07CJZSo6xbZmI2icU",
-  authDomain: "studio-5968331546-377b8.firebaseapp.com",
-  messagingSenderId: "1047403536331",
+  apiKey: "PASTE_YOUR_CUSTOMER_API_KEY_HERE",
+  authDomain: "PASTE_YOUR_CUSTOMER_AUTH_DOMAIN_HERE",
+  projectId: "PASTE_YOUR_CUSTOMER_PROJECT_ID_HERE",
+  storageBucket: "PASTE_YOUR_CUSTOMER_STORAGE_BUCKET_HERE",
+  messagingSenderId: "PASTE_YOUR_CUSTOMER_MESSAGING_SENDER_ID_HERE",
+  appId: "PASTE_YOUR_CUSTOMER_APP_ID_HERE",
 };
+// =================================================================================
+// =================================================================================
+
 
 // Initialize Firebase
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
