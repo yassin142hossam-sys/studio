@@ -1,0 +1,23 @@
+{
+  "name": "SchoolTalk",
+  "short_name": "SchoolTalk",
+  "description": "Communicate with parents effectively.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#EBF2FA",
+  "theme_color": "#B9CDE5",
+  "icons": [
+    {
+      "src": "/icons/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
+
+    
