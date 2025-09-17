@@ -58,7 +58,10 @@ export function EmailPasswordAuth({ onLoginSuccess }: EmailPasswordAuthProps) {
 
   const handleAuth = async (data: AuthFormData, isSignUp: boolean) => {
     setIsLoading(true);
-    const email = `${data.phoneNumber}@${DUMMY_DOMAIN}`;
+    // Sanitize the phone number to remove non-digit characters
+    const sanitizedPhoneNumber = data.phoneNumber.replace(/\D/g, '');
+    const email = `${sanitizedPhoneNumber}@${DUMMY_DOMAIN}`;
+
     try {
       let userCredential;
       if (isSignUp) {
