@@ -170,9 +170,9 @@ export function SchoolTalkClient() {
     if (!foundStudent) return;
     
     let messageParts: string[] = [];
-    if(data.homework) messageParts.push(`الواجب: ${data.homework}`);
-    if(data.quiz) messageParts.push(`الاختبار: ${data.quiz}`);
-    if(data.attendance) messageParts.push(`الحضور: ${data.attendance}`);
+    if(data.homework) messageParts.push(`Homework: ${data.homework}`);
+    if(data.quiz) messageParts.push(`Quiz: ${data.quiz}`);
+    if(data.attendance) messageParts.push(`Attendance: ${data.attendance}`);
 
     if (messageParts.length === 0) {
         toast({
