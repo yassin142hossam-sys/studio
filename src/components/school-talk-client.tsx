@@ -265,9 +265,9 @@ export function SchoolTalkClient() {
         });
         return;
     }
-
+    const teacherPhoneNumber = user?.email?.split('@')[0];
     const date = new Date().toLocaleDateString();
-    const message = `[${date}] مع حضرتك اسيستنت Mrs. Hanaa Abdel-Majid بنبلغ حضرتك بأداء الطالب/ة: ${foundStudent.name}\n\n- ${messageParts.join('\n\n- ')}`;
+    const message = `[${date}] Message from teacher Hanaa Abdel-Majid regarding student: ${foundStudent.name}\n\n- ${messageParts.join('\n\n- ')}`;
 
     const url = `whatsapp://send?phone=${foundStudent.parentWhatsApp}&text=${encodeURIComponent(message)}`;
     window.open(url, "_blank");
@@ -293,7 +293,7 @@ export function SchoolTalkClient() {
               <div>
                   <CardTitle>Teacher Account</CardTitle>
                   <CardDescription>
-                      Signed in as: {user.email}
+                      Signed in with: {user.email?.split('@')[0]}
                   </CardDescription>
               </div>
               <div className="flex flex-col sm:flex-row gap-2">

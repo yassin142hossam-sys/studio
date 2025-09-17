@@ -33,7 +33,7 @@ import { LoaderCircle } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const AuthSchema = z.object({
-  email: z.string().email({ message: "Please enter a valid email address." }),
+  phoneNumber: z.string().min(1, { message: "Please enter a valid phone number." }),
   password: z
     .string()
     .min(6, { message: "Password must be at least 6 characters long." }),
@@ -45,23 +45,26 @@ interface EmailPasswordAuthProps {
   onLoginSuccess: (user: User) => void;
 }
 
+const DUMMY_DOMAIN = "schooltalk.app";
+
 export function EmailPasswordAuth({ onLoginSuccess }: EmailPasswordAuthProps) {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
 
   const form = useForm<AuthFormData>({
     resolver: zodResolver(AuthSchema),
-    defaultValues: { email: "", password: "" },
+    defaultValues: { phoneNumber: "", password: "" },
   });
 
   const handleAuth = async (data: AuthFormData, isSignUp: boolean) => {
     setIsLoading(true);
+    const email = `${data.phoneNumber}@${DUMMY_DOMAIN}`;
     try {
       let userCredential;
       if (isSignUp) {
         userCredential = await createUserWithEmailAndPassword(
           auth,
-          data.email,
+          email,
           data.password
         );
         toast({
@@ -71,7 +74,7 @@ export function EmailPasswordAuth({ onLoginSuccess }: EmailPasswordAuthProps) {
       } else {
         userCredential = await signInWithEmailAndPassword(
           auth,
-          data.email,
+          email,
           data.password
         );
         toast({
@@ -84,11 +87,13 @@ export function EmailPasswordAuth({ onLoginSuccess }: EmailPasswordAuthProps) {
       console.error("Authentication error:", error);
       let description = "An unexpected error occurred. Please try again.";
       if (error.code === "auth/email-already-in-use") {
-        description = "This email is already in use. Please try signing in.";
+        description = "This phone number is already in use. Please try signing in.";
       } else if (error.code === "auth/user-not-found" || error.code === "auth/wrong-password") {
-        description = "Invalid email or password. Please try again.";
+        description = "Invalid phone number or password. Please try again.";
       } else if (error.code === 'auth/invalid-credential') {
-        description = "Invalid email or password. Please try again.";
+        description = "Invalid phone number or password. Please try again.";
+      } else if (error.code === 'auth/invalid-email') {
+        description = "The phone number format is invalid. Please check and try again.";
       }
       toast({
         variant: "destructive",
@@ -110,7 +115,7 @@ export function EmailPasswordAuth({ onLoginSuccess }: EmailPasswordAuthProps) {
                 <CardHeader>
                     <CardTitle>Sign In</CardTitle>
                     <CardDescription>
-                        Enter your credentials to access your account.
+                        Enter your team's phone number and password.
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -118,12 +123,12 @@ export function EmailPasswordAuth({ onLoginSuccess }: EmailPasswordAuthProps) {
                         <form onSubmit={form.handleSubmit((data) => handleAuth(data, false))} className="space-y-6">
                             <FormField
                                 control={form.control}
-                                name="email"
+                                name="phoneNumber"
                                 render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Email</FormLabel>
+                                    <FormLabel>Phone Number</FormLabel>
                                     <FormControl>
-                                    <Input placeholder="teacher@example.com" {...field} />
+                                    <Input placeholder="+201234567890" {...field} />
                                     </FormControl>
                                     <FormMessage />
                                 </FormItem>
@@ -162,12 +167,12 @@ export function EmailPasswordAuth({ onLoginSuccess }: EmailPasswordAuthProps) {
                         <form onSubmit={form.handleSubmit((data) => handleAuth(data, true))} className="space-y-6">
                             <FormField
                                 control={form.control}
-                                name="email"
+                                name="phoneNumber"
                                 render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Email</FormLabel>
+                                    <FormLabel>Phone Number</FormLabel>
                                     <FormControl>
-                                    <Input placeholder="teacher@example.com" {...field} />
+                                    <Input placeholder="+201234567890" {...field} />
                                     </FormControl>
                                     <FormMessage />
                                 </FormItem>
