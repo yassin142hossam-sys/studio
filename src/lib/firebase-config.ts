@@ -3,15 +3,15 @@ import { getFirestore } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 
 // =================================================================================
-// IMPORTANT: REPLACE THIS WITH YOUR CUSTOMER'S FIREBASE PROJECT CONFIGURATION
+// IMPORTANT: PASTE YOUR CUSTOMER'S FIREBASE PROJECT CONFIGURATION HERE
 // =================================================================================
 const firebaseConfig = {
-  apiKey: "AIzaSyCq9z1-rZz28GhEXP07CJZSo6xbZmI2icU",
-  authDomain: "studio-5968331546-377b8.firebaseapp.com",
-  projectId: "studio-5968331546-377b8",
-  storageBucket: "studio-5968331546-377b8.appspot.com",
-  messagingSenderId: "1047403536331",
-  appId: "1:1047403536331:web:430b3bfe40521fd3f4a04e"
+  apiKey: "PASTE_YOUR_CUSTOMER_API_KEY_HERE",
+  authDomain: "PASTE_YOUR_CUSTOMER_AUTH_DOMAIN_HERE",
+  projectId: "PASTE_YOUR_CUSTOMER_PROJECT_ID_HERE",
+  storageBucket: "PASTE_YOUR_CUSTOMER_STORAGE_BUCKET_HERE",
+  messagingSenderId: "PASTE_YOUR_CUSTOMER_MESSAGING_SENDER_ID_HERE",
+  appId: "PASTE_YOUR_CUSTOMER_APP_ID_HERE"
 };
 // =================================================================================
 // =================================================================================
