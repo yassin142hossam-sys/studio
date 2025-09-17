@@ -170,9 +170,9 @@ export function SchoolTalkClient() {
     if (!foundStudent) return;
     
     let messageParts: string[] = [];
-    if(data.homework) messageParts.push(`Homework: ${data.homework}`);
-    if(data.quiz) messageParts.push(`Quiz: ${data.quiz}`);
-    if(data.attendance) messageParts.push(`Attendance: ${data.attendance}`);
+    if(data.homework) messageParts.push(`الواجب: ${data.homework}`);
+    if(data.quiz) messageParts.push(`الاختبار: ${data.quiz}`);
+    if(data.attendance) messageParts.push(`الحضور: ${data.attendance}`);
 
     if (messageParts.length === 0) {
         toast({
@@ -184,7 +184,7 @@ export function SchoolTalkClient() {
     }
 
     const date = new Date().toLocaleDateString();
-    const message = `Mrs. Hanaa Abdel-Majid\n\n[${date}] Hello, this is an update for ${foundStudent.name}:\n\n- ${messageParts.join('\n- ')}`;
+    const message = `[${date}] مع حضرتك اسيستنت Mrs. Hanaa Abdel-Majid بنبلغ حضرتك بأداء الطالب/ة: ${foundStudent.name}\n\n- ${messageParts.join('\n- ')}`;
 
     const url = `whatsapp://send?phone=${foundStudent.parentWhatsApp}&text=${encodeURIComponent(message)}`;
     window.open(url, "_blank");
