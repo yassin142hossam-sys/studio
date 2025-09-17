@@ -66,6 +66,13 @@ export function CustomAuth({ onLoginSuccess }: CustomAuthProps) {
     defaultValues: { code: "" },
   });
 
+  const resetToPhoneStep = () => {
+    setStep('phone');
+    phoneForm.reset({ phone: '' });
+    codeForm.reset({ code: '' });
+    setPhoneNumber('');
+  }
+
   const onCheckPhone = async (data: z.infer<typeof PhoneSchema>) => {
     setIsLoading(true);
     try {
@@ -73,6 +80,7 @@ export function CustomAuth({ onLoginSuccess }: CustomAuthProps) {
       const docSnap = await getDoc(teacherDocRef);
 
       setPhoneNumber(data.phone);
+      codeForm.reset({ code: '' }); // Clear code field before moving to next step
 
       if (docSnap.exists()) {
         setStep("enter_code");
@@ -103,6 +111,7 @@ export function CustomAuth({ onLoginSuccess }: CustomAuthProps) {
             toast({ title: "Success!", description: "You are now signed in." });
             onLoginSuccess(account);
         } else {
+            codeForm.setError("code", { type: "manual", message: "The access code is incorrect." });
             toast({ variant: "destructive", title: "Incorrect Code", description: "The access code is incorrect. Please try again." });
         }
 
@@ -117,12 +126,14 @@ export function CustomAuth({ onLoginSuccess }: CustomAuthProps) {
     setIsLoading(true);
     try {
         const accessCodeHash = await simpleHash(data.code);
+        const newAccountData = { accessCodeHash: accessCodeHash };
+
+        await setDoc(doc(db, "teachers", phoneNumber), newAccountData);
+        
         const newAccount: TeacherAccount = {
             id: phoneNumber,
-            accessCodeHash: accessCodeHash
+            ...newAccountData
         };
-
-        await setDoc(doc(db, "teachers", phoneNumber), { accessCodeHash });
         
         toast({ title: "Account Created!", description: "You are now signed in." });
         onLoginSuccess(newAccount);
@@ -195,7 +206,7 @@ export function CustomAuth({ onLoginSuccess }: CustomAuthProps) {
                       {isLoading && <LoaderCircle className="animate-spin mr-2" />}
                       Sign In
                     </Button>
-                    <Button variant="link" onClick={() => { setStep('phone'); codeForm.reset(); }} className="w-full">
+                    <Button variant="link" onClick={resetToPhoneStep} className="w-full">
                         Use a different number
                     </Button>
                   </form>
@@ -230,7 +241,7 @@ export function CustomAuth({ onLoginSuccess }: CustomAuthProps) {
                       {isLoading && <LoaderCircle className="animate-spin mr-2" />}
                       Create Account and Sign In
                     </Button>
-                     <Button variant="link" onClick={() => { setStep('phone'); codeForm.reset(); }} className="w-full">
+                     <Button variant="link" onClick={resetToPhoneStep} className="w-full">
                         Use a different number
                     </Button>
                   </form>
