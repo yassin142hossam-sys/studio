@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useState, useEffect } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
+import { useForm, useFieldArray } from "react-hook-form";
 import * as z from "zod";
 
 import { Button } from "@/components/ui/button";
@@ -25,26 +25,9 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { students as initialStudents } from "@/lib/data";
 import type { Student } from "@/lib/types";
-import {
-  checkMessageTone,
-  type CheckMessageToneOutput,
-} from "@/ai/flows/check-message-tone";
-import {
-    generateMessageFromData
-} from "@/ai/flows/generate-message-from-data";
 import {
     Dialog,
     DialogContent,
@@ -57,24 +40,17 @@ import {
   Search,
   User,
   Phone,
+  LoaderCircle,
+  Send,
+  PlusCircle,
   BookOpen,
   ClipboardCheck as QuizzesIcon,
   CalendarDays,
-  Sparkles,
-  LoaderCircle,
-  Send,
-  AlertTriangle,
-  Smile,
-  Frown,
-  Meh,
-  CheckCircle,
-  XCircle,
-  PlusCircle,
-  MessageSquarePlus,
 } from "lucide-react";
 import { RadioGroup, RadioGroupItem } from "./ui/radio-group";
+import { Label } from "./ui/label";
 
-const FormSchema = z.object({
+const StudentSearchSchema = z.object({
   studentCode: z
     .string()
     .min(1, { message: "Student code cannot be empty." })
@@ -87,14 +63,16 @@ const AddStudentSchema = z.object({
     parentWhatsApp: z.string().min(10, "A valid WhatsApp number is required."),
 });
 
+const MessageFormSchema = z.object({
+    homework: z.string(),
+    quiz: z.string(),
+    attendance: z.enum(["On Time", "Late"]).optional(),
+});
+
+
 export function SchoolTalkClient() {
   const { toast } = useToast();
   const [foundStudent, setFoundStudent] = useState<Student | null>(null);
-  const [message, setMessage] = useState("");
-  const [toneAnalysis, setToneAnalysis] =
-    useState<CheckMessageToneOutput | null>(null);
-  const [isCheckingTone, setIsCheckingTone] = useState(false);
-  const [isGeneratingMessage, setIsGeneratingMessage] = useState(false);
   const [isLoadingStudent, setIsLoadingStudent] = useState(false);
   const [teacherWhatsapp, setTeacherWhatsapp] = useState("");
   const [showWhatsappModal, setShowWhatsappModal] = useState(false);
@@ -127,8 +105,8 @@ export function SchoolTalkClient() {
     }
   };
 
-  const form = useForm<z.infer<typeof FormSchema>>({
-    resolver: zodResolver(FormSchema),
+  const studentSearchForm = useForm<z.infer<typeof StudentSearchSchema>>({
+    resolver: zodResolver(StudentSearchSchema),
     defaultValues: { studentCode: "" },
   });
 
@@ -136,8 +114,17 @@ export function SchoolTalkClient() {
     resolver: zodResolver(AddStudentSchema),
     defaultValues: { code: "", name: "", parentWhatsApp: "" },
   });
+  
+  const messageForm = useForm<z.infer<typeof MessageFormSchema>>({
+    resolver: zodResolver(MessageFormSchema),
+    defaultValues: {
+        homework: "",
+        quiz: "",
+    }
+  });
 
-  function onStudentSearch(data: z.infer<typeof FormSchema>) {
+
+  function onStudentSearch(data: z.infer<typeof StudentSearchSchema>) {
     setIsLoadingStudent(true);
     // Simulate API call
     setTimeout(() => {
@@ -146,8 +133,7 @@ export function SchoolTalkClient() {
       );
       if (student) {
         setFoundStudent(student);
-        setToneAnalysis(null);
-        setMessage("");
+        messageForm.reset();
       } else {
         setFoundStudent(null);
         toast({
@@ -180,98 +166,30 @@ export function SchoolTalkClient() {
     }, 500);
   }
 
-  const handleCheckTone = async () => {
-    if (!message) {
-      toast({
-        variant: "destructive",
-        title: "Empty Message",
-        description: "Please write a message before checking the tone.",
-      });
-      return;
-    }
-    setIsCheckingTone(true);
-    setToneAnalysis(null);
-    try {
-      const result = await checkMessageTone({ message });
-      setToneAnalysis(result);
-    } catch (error) {
-      console.error("Error checking message tone:", error);
-      toast({
-        variant: "destructive",
-        title: "AI Error",
-        description: "Could not analyze the message tone.",
-      });
-    } finally {
-      setIsCheckingTone(false);
-    }
-  };
-
-  const handleGenerateMessage = async () => {
+  const handleSendWhatsApp = (data: z.infer<typeof MessageFormSchema>) => {
     if (!foundStudent) return;
-    setIsGeneratingMessage(true);
-    setMessage("");
-    setToneAnalysis(null);
-    try {
-      const result = await generateMessageFromData({ student: foundStudent });
-      setMessage(result.message);
-    } catch (error) {
-        console.error("Error generating message:", error);
+    
+    let messageParts: string[] = [];
+    if(data.homework) messageParts.push(`Homework: ${data.homework}`);
+    if(data.quiz) messageParts.push(`Quiz: ${data.quiz}`);
+    if(data.attendance) messageParts.push(`Attendance: ${data.attendance}`);
+
+    if (messageParts.length === 0) {
         toast({
             variant: "destructive",
-            title: "AI Error",
-            description: "Could not generate a message.",
+            title: "Empty Message",
+            description: "Please fill out at least one field to send a message.",
         });
-    } finally {
-        setIsGeneratingMessage(false);
+        return;
     }
-  };
 
-  const handleSendWhatsApp = () => {
-    if (!foundStudent) return;
-    if (!message) {
-      toast({
-        variant: "destructive",
-        title: "Empty Message",
-        description: "Please write a message to send.",
-      });
-      return;
-    }
     const date = new Date().toLocaleDateString();
-    const messageWithDate = `[${date}] ${message}`;
+    const message = `[${date}] Hello, this is an update for ${foundStudent.name}:\n\n- ${messageParts.join('\n- ')}`;
 
     const url = `https://wa.me/${
       foundStudent.parentWhatsApp
-    }?text=${encodeURIComponent(messageWithDate)}`;
+    }?text=${encodeURIComponent(message)}`;
     window.open(url, "_blank");
-  };
-  
-  const getToneIcon = (tone: string) => {
-    const lowerTone = tone.toLowerCase();
-    if (lowerTone.includes("positive")) return <Smile className="text-green-600" />;
-    if (lowerTone.includes("negative")) return <Frown className="text-red-600" />;
-    if (lowerTone.includes("neutral")) return <Meh className="text-yellow-600" />;
-    return <AlertTriangle className="text-gray-500" />;
-  };
-
-  const handleHomeworkMarkChange = (index: number, mark: string) => {
-    if (!foundStudent) return;
-    const updatedStudent = { ...foundStudent };
-    updatedStudent.homework[index].mark = mark;
-    setFoundStudent(updatedStudent);
-  };
-
-  const handleQuizMarkChange = (index: number, mark: string) => {
-    if (!foundStudent) return;
-    const updatedStudent = { ...foundStudent };
-    updatedStudent.quizzes[index].mark = mark;
-    setFoundStudent(updatedStudent);
-  };
-  
-  const handleAttendanceChange = (index: number, status: 'Late' | 'On Time') => {
-    if (!foundStudent) return;
-    const updatedStudent = { ...foundStudent };
-    updatedStudent.attendance[index].status = status;
-    setFoundStudent(updatedStudent);
   };
 
   return (
@@ -304,10 +222,10 @@ export function SchoolTalkClient() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onStudentSearch)} className="flex gap-4">
+          <Form {...studentSearchForm}>
+            <form onSubmit={studentSearchForm.handleSubmit(onStudentSearch)} className="flex gap-4">
               <FormField
-                control={form.control}
+                control={studentSearchForm.control}
                 name="studentCode"
                 render={({ field }) => (
                   <FormItem className="flex-grow">
@@ -400,225 +318,86 @@ export function SchoolTalkClient() {
 
       {foundStudent && (
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <User /> Student Information
-            </CardTitle>
-            <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 pt-2">
-              <p className="text-xl font-semibold text-foreground">
-                {foundStudent.name}
-              </p>
-              <p className="flex items-center gap-2 text-muted-foreground">
-                <Phone size={16} />
-                {`Parent's WhatsApp: ...${foundStudent.parentWhatsApp.slice(-4)}`}
-              </p>
-            </div>
-          </CardHeader>
+            <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                <User /> {foundStudent.name}
+                </CardTitle>
+                <CardDescription className="flex items-center gap-2 pt-1">
+                    <Phone size={16} />
+                    {`Parent's WhatsApp: ...${foundStudent.parentWhatsApp.slice(-4)}`}
+                </CardDescription>
+            </CardHeader>
           <CardContent>
-            <Tabs defaultValue="homework">
-              <TabsList className="grid w-full grid-cols-3">
-                <TabsTrigger value="homework">
-                  <BookOpen className="mr-2" /> Homework
-                </TabsTrigger>
-                <TabsTrigger value="quizzes">
-                  <QuizzesIcon className="mr-2" /> Quizzes
-                </TabsTrigger>
-                <TabsTrigger value="attendance">
-                  <CalendarDays className="mr-2" /> Attendance
-                </TabsTrigger>
-              </TabsList>
-              <TabsContent value="homework" className="mt-4">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Subject</TableHead>
-                      <TableHead>Task</TableHead>
-                      <TableHead>Due Date</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Mark</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {foundStudent.homework.map((hw, i) => (
-                      <TableRow key={i}>
-                        <TableCell>{hw.subject}</TableCell>
-                        <TableCell>{hw.task}</TableCell>
-                        <TableCell>{hw.dueDate}</TableCell>
-                        <TableCell>
-                          <Badge
-                            variant={hw.completed ? "secondary" : "destructive"}
-                          >
-                            {hw.completed ? "Completed" : "Pending"}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                            <Input
-                                value={hw.mark ?? ''}
-                                onChange={(e) => handleHomeworkMarkChange(i, e.target.value)}
-                                placeholder="Add mark"
-                                className="w-28"
-                            />
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TabsContent>
-              <TabsContent value="quizzes" className="mt-4">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Subject</TableHead>
-                      <TableHead>Topic</TableHead>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Score</TableHead>
-                      <TableHead>Mark</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {foundStudent.quizzes.map((quiz, i) => (
-                      <TableRow key={i}>
-                        <TableCell>{quiz.subject}</TableCell>
-                        <TableCell>{quiz.topic}</TableCell>
-                        <TableCell>{quiz.date}</TableCell>
-                        <TableCell>
-                          {quiz.score !== null ? `${quiz.score}%` : "N/A"}
-                        </TableCell>
-                        <TableCell>
-                            <Input
-                                value={quiz.mark ?? ''}
-                                onChange={(e) => handleQuizMarkChange(i, e.target.value)}
-                                placeholder="Add mark"
-                                className="w-28"
-                            />
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TabsContent>
-              <TabsContent value="attendance" className="mt-4">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Status</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {foundStudent.attendance.map((att, i) => (
-                      <TableRow key={i}>
-                        <TableCell>{att.date}</TableCell>
-                        <TableCell>
-                           <RadioGroup
-                             value={att.status}
-                             onValueChange={(value: 'Late' | 'On Time') => handleAttendanceChange(i, value)}
-                             className="flex space-x-4"
-                           >
-                             <div className="flex items-center space-x-2">
-                               <RadioGroupItem value="On Time" id={`on-time-${i}`} />
-                               <Label htmlFor={`on-time-${i}`}>On Time</Label>
-                             </div>
-                             <div className="flex items-center space-x-2">
-                               <RadioGroupItem value="Late" id={`late-${i}`} />
-                               <Label htmlFor={`late-${i}`}>Late</Label>
-                             </div>
-                           </RadioGroup>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TabsContent>
-            </Tabs>
-          </CardContent>
-        </Card>
-      )}
-
-      {foundStudent && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Compose Message</CardTitle>
-            <CardDescription>
-              Write your message to {foundStudent.name}'s parent.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Textarea
-              placeholder={isGeneratingMessage ? "AI is generating a message..." : "Type your message here..."}
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              rows={6}
-              className="text-base"
-              disabled={isGeneratingMessage}
-            />
-          </CardContent>
-          <CardFooter className="flex flex-wrap justify-end gap-4">
-            <Button
-                variant="outline"
-                onClick={handleGenerateMessage}
-                disabled={isGeneratingMessage || isCheckingTone}
-            >
-                {isGeneratingMessage ? (
-                    <LoaderCircle className="animate-spin" />
-                ) : (
-                    <MessageSquarePlus />
-                )}
-                <span className="ml-2">Generate Message</span>
-            </Button>
-            <Button
-              variant="outline"
-              onClick={handleCheckTone}
-              disabled={isCheckingTone || isGeneratingMessage}
-            >
-              {isCheckingTone ? (
-                <LoaderCircle className="animate-spin" />
-              ) : (
-                <Sparkles />
-              )}
-              <span className="ml-2">Check Tone</span>
-            </Button>
-            <Button onClick={handleSendWhatsApp}>
-              <Send />
-              <span className="ml-2">Send via WhatsApp</span>
-            </Button>
-          </CardFooter>
-        </Card>
-      )}
-
-      {isCheckingTone && (
-         <Card className="flex items-center justify-center p-8">
-            <LoaderCircle className="mr-4 h-8 w-8 animate-spin text-primary" />
-            <p className="text-lg text-muted-foreground">Analyzing tone...</p>
-        </Card>
-      )}
-
-      {toneAnalysis && (
-        <Card className="bg-secondary/50">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Sparkles /> AI Tone Analysis
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center gap-3 rounded-lg border bg-card p-4">
-              {getToneIcon(toneAnalysis.tone)}
-              <div>
-                <h4 className="font-semibold">Tone</h4>
-                <p className="text-muted-foreground">{toneAnalysis.tone}</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3 rounded-lg border bg-card p-4">
-               {toneAnalysis.appropriateness.toLowerCase().includes("appropriate") ? <CheckCircle className="text-green-600"/> : <XCircle className="text-red-600"/>}
-              <div>
-                <h4 className="font-semibold">Appropriateness</h4>
-                <p className="text-muted-foreground">{toneAnalysis.appropriateness}</p>
-              </div>
-            </div>
-             <div className="rounded-lg border bg-card p-4">
-                <h4 className="font-semibold mb-2">Suggestions</h4>
-                <p className="text-muted-foreground whitespace-pre-wrap">{toneAnalysis.suggestions}</p>
-              </div>
+            <Form {...messageForm}>
+                <form onSubmit={messageForm.handleSubmit(handleSendWhatsApp)} className="space-y-6">
+                    <FormField
+                        control={messageForm.control}
+                        name="homework"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel className="flex items-center gap-2"><BookOpen/> Homework</FormLabel>
+                                <FormControl>
+                                    <Textarea placeholder="Enter homework details or mark..." {...field} />
+                                </FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                     <FormField
+                        control={messageForm.control}
+                        name="quiz"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel className="flex items-center gap-2"><QuizzesIcon/> Quiz</FormLabel>
+                                <FormControl>
+                                    <Textarea placeholder="Enter quiz details or score..." {...field} />
+                                </FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                    <FormField
+                        control={messageForm.control}
+                        name="attendance"
+                        render={({ field }) => (
+                            <FormItem className="space-y-3">
+                                <FormLabel className="flex items-center gap-2"><CalendarDays/> Attendance</FormLabel>
+                                <FormControl>
+                                    <RadioGroup
+                                    onValueChange={field.onChange}
+                                    defaultValue={field.value}
+                                    className="flex items-center space-x-4"
+                                    >
+                                    <FormItem className="flex items-center space-x-2 space-y-0">
+                                        <FormControl>
+                                        <RadioGroupItem value="On Time" />
+                                        </FormControl>
+                                        <FormLabel className="font-normal">
+                                        On Time
+                                        </FormLabel>
+                                    </FormItem>
+                                    <FormItem className="flex items-center space-x-2 space-y-0">
+                                        <FormControl>
+                                        <RadioGroupItem value="Late" />
+                                        </FormControl>
+                                        <FormLabel className="font-normal">
+                                        Late
+                                        </FormLabel>
+                                    </FormItem>
+                                    </RadioGroup>
+                                </FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                    <CardFooter className="px-0 pt-4 justify-end">
+                        <Button type="submit">
+                            <Send />
+                            <span className="ml-2">Send via WhatsApp</span>
+                        </Button>
+                    </CardFooter>
+                </form>
+            </Form>
           </CardContent>
         </Card>
       )}
