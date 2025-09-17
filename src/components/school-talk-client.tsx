@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useState, useEffect } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm, useFieldArray } from "react-hook-form";
+import { useForm } from "react-hook-form";
 import * as z from "zod";
 
 import { Button } from "@/components/ui/button";
@@ -133,7 +133,7 @@ export function SchoolTalkClient() {
       );
       if (student) {
         setFoundStudent(student);
-        messageForm.reset();
+        messageForm.reset({ homework: "", quiz: "", attendance: undefined });
       } else {
         setFoundStudent(null);
         toast({
