@@ -277,9 +277,10 @@ export function SchoolTalkClient() {
         });
         return;
     }
-    const teacherPhoneNumber = user?.email?.split('@')[0];
-    const date = new Date().toLocaleDateString();
-    const message = `[${date}] مع حضرتك اسيستنت Mrs. Hanaa Abdel-Majid بنبلغ حضرتك بأداء الطالب/ة: ${foundStudent.name}\n\n- ${messageParts.join('\n\n- ')}`;
+    
+    const intro = `مع حضرتك اسيستنت Mrs. Hanaa Abdel-Majid بنبلغ حضرتك بأداء الطالب/ة: ${foundStudent.name}`;
+    const details = messageParts.join('\n\n- ');
+    const message = `${intro}\n\n- ${details}`;
 
     const url = `whatsapp://send?phone=${foundStudent.parentWhatsApp}&text=${encodeURIComponent(message)}`;
     window.open(url, "_blank");
