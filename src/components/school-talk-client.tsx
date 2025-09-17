@@ -26,7 +26,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { students as initialStudents } from "@/lib/data";
 import type { Student } from "@/lib/types";
 import {
     Dialog,
@@ -37,6 +36,17 @@ import {
     DialogFooter,
   } from "@/components/ui/dialog";
 import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    AlertDialogTrigger,
+  } from "@/components/ui/alert-dialog";
+import {
   Search,
   User,
   Phone,
@@ -46,9 +56,9 @@ import {
   BookOpen,
   ClipboardCheck as QuizzesIcon,
   CalendarDays,
+  Trash2,
 } from "lucide-react";
 import { RadioGroup, RadioGroupItem } from "./ui/radio-group";
-import { Label } from "./ui/label";
 
 const StudentSearchSchema = z.object({
   studentCode: z
@@ -76,21 +86,35 @@ export function SchoolTalkClient() {
   const [isLoadingStudent, setIsLoadingStudent] = useState(false);
   const [teacherWhatsapp, setTeacherWhatsapp] = useState("");
   const [showWhatsappModal, setShowWhatsappModal] = useState(false);
-  const [students, setStudents] = useState<Student[]>(initialStudents);
+  const [students, setStudents] = useState<Student[]>([]);
   const [isAddingStudent, setIsAddingStudent] = useState(false);
 
+  // Load teacher's number and their students from localStorage
   useEffect(() => {
     const storedWhatsapp = localStorage.getItem("teacherWhatsapp");
     if (storedWhatsapp) {
       setTeacherWhatsapp(storedWhatsapp);
+      const allStudentsData = JSON.parse(localStorage.getItem("allStudents") || "{}");
+      setStudents(allStudentsData[storedWhatsapp] || []);
     } else {
       setShowWhatsappModal(true);
     }
   }, []);
 
+  // Effect to save students to localStorage whenever the list changes
+  useEffect(() => {
+    if (teacherWhatsapp) {
+      const allStudentsData = JSON.parse(localStorage.getItem("allStudents") || "{}");
+      allStudentsData[teacherWhatsapp] = students;
+      localStorage.setItem("allStudents", JSON.stringify(allStudentsData));
+    }
+  }, [students, teacherWhatsapp]);
+
   const handleSaveWhatsapp = () => {
     if (teacherWhatsapp.length >= 10) {
       localStorage.setItem("teacherWhatsapp", teacherWhatsapp);
+      const allStudentsData = JSON.parse(localStorage.getItem("allStudents") || "{}");
+      setStudents(allStudentsData[teacherWhatsapp] || []);
       setShowWhatsappModal(false);
       toast({
         title: "WhatsApp Number Saved",
@@ -149,6 +173,16 @@ export function SchoolTalkClient() {
   function onAddStudent(data: z.infer<typeof AddStudentSchema>) {
     setIsAddingStudent(true);
     setTimeout(() => {
+        if (students.some(s => s.code.toLowerCase() === data.code.toLowerCase())) {
+            toast({
+                variant: "destructive",
+                title: "Student Code Exists",
+                description: "A student with this code already exists.",
+            });
+            setIsAddingStudent(false);
+            return;
+        }
+
         const newStudent: Student = {
             id: (students.length + 1).toString(),
             ...data,
@@ -159,11 +193,20 @@ export function SchoolTalkClient() {
         setStudents([...students, newStudent]);
         toast({
             title: "Student Added",
-            description: `${data.name} has been added to the list.`,
+            description: `${data.name} has been added to your account.`,
         });
         addStudentForm.reset();
         setIsAddingStudent(false);
     }, 500);
+  }
+
+  function onDeleteStudent(studentId: string) {
+    setStudents(students.filter(s => s.id !== studentId));
+    setFoundStudent(null);
+    toast({
+        title: "Student Deleted",
+        description: "The student has been removed from your account.",
+    });
   }
 
   const handleSendWhatsApp = (data: z.infer<typeof MessageFormSchema>) => {
@@ -197,7 +240,7 @@ export function SchoolTalkClient() {
             <DialogHeader>
                 <DialogTitle>Enter Your WhatsApp Number</DialogTitle>
                 <DialogDescription>
-                Please enter your WhatsApp number to send messages to parents. This will be stored locally on your device.
+                This number will act as your account. Students you add will be saved under this number.
                 </DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-4">
@@ -208,7 +251,7 @@ export function SchoolTalkClient() {
                 />
             </div>
             <DialogFooter>
-                <Button onClick={handleSaveWhatsapp}>Save Number</Button>
+                <Button onClick={handleSaveWhatsapp}>Save and Continue</Button>
             </DialogFooter>
             </DialogContent>
       </Dialog>
@@ -256,7 +299,7 @@ export function SchoolTalkClient() {
         <CardHeader>
           <CardTitle>Add New Student</CardTitle>
           <CardDescription>
-            Add a new student to the records.
+            Add a new student to your account.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -301,7 +344,7 @@ export function SchoolTalkClient() {
                             </FormItem>
                         )}
                     />
-                    <Button type="submit" disabled={isAddingStudent}>
+                    <Button type="submit" disabled={isAddingStudent || !teacherWhatsapp}>
                         {isAddingStudent ? (
                         <LoaderCircle className="animate-spin" />
                         ) : (
@@ -317,13 +360,40 @@ export function SchoolTalkClient() {
       {foundStudent && (
         <Card>
             <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                <User /> {foundStudent.name}
-                </CardTitle>
-                <CardDescription className="flex items-center gap-2 pt-1">
-                    <Phone size={16} />
-                    {`Parent's WhatsApp: ...${foundStudent.parentWhatsApp.slice(-4)}`}
-                </CardDescription>
+                <div className="flex justify-between items-start">
+                    <div>
+                        <CardTitle className="flex items-center gap-2">
+                        <User /> {foundStudent.name}
+                        </CardTitle>
+                        <CardDescription className="flex items-center gap-2 pt-1">
+                            <Phone size={16} />
+                            {`Parent's WhatsApp: ...${foundStudent.parentWhatsApp.slice(-4)}`}
+                        </CardDescription>
+                    </div>
+                    <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                            <Button variant="destructive" size="icon">
+                                <Trash2 />
+                                <span className="sr-only">Delete Student</span>
+                            </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                            <AlertDialogHeader>
+                                <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                This action cannot be undone. This will permanently delete the student
+                                from your account.
+                                </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction onClick={() => onDeleteStudent(foundStudent.id)}>
+                                Delete
+                                </AlertDialogAction>
+                            </AlertDialogFooter>
+                        </AlertDialogContent>
+                    </AlertDialog>
+                </div>
             </CardHeader>
           <CardContent>
             <Form {...messageForm}>
@@ -402,3 +472,5 @@ export function SchoolTalkClient() {
     </div>
   );
 }
+
+    

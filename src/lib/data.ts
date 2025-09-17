@@ -1,5 +1,6 @@
 import type { Student } from '@/lib/types';
 
+// This is now fallback data, the primary source of truth is localStorage
 export const students: Student[] = [
   {
     id: '1',
@@ -57,3 +58,5 @@ export const students: Student[] = [
     ],
   },
 ];
+
+    
