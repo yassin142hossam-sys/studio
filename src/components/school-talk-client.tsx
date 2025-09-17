@@ -184,7 +184,7 @@ export function SchoolTalkClient() {
     }
 
     const date = new Date().toLocaleDateString();
-    const message = `[${date}] Hello, this is an update for ${foundStudent.name}:\n\n- ${messageParts.join('\n- ')}`;
+    const message = `Mrs. Hanaa Abdel-Majid\n\n[${date}] Hello, this is an update for ${foundStudent.name}:\n\n- ${messageParts.join('\n- ')}`;
 
     const url = `https://wa.me/${
       foundStudent.parentWhatsApp
