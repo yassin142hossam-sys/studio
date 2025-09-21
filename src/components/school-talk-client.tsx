@@ -266,29 +266,27 @@ export function SchoolTalkClient() {
     
     const formData = messageForm.getValues();
     const intro = `مع حضرتك اسيستنت Mrs. Hanaa Abdel-Majid بنبلغ حضرتك بأداء الطالب/ة: ${foundStudent.name}`;
-    const messageLines: string[] = [intro];
-
+    let message = "";
+    
     if (formData.attendance === "Absent") {
-        messageLines.push(`- Attendance: Absent`);
+        message = `${intro}\n- Attendance: Absent`;
     } else {
+        const messageLines: string[] = [intro];
         if(formData.homework) messageLines.push(`- Homework: ${formData.homework}`);
         if(formData.quiz) messageLines.push(`- Quiz: ${formData.quiz}`);
         if(formData.attendance) messageLines.push(`- Attendance: ${formData.attendance}`);
+        
+        if (messageLines.length <= 1) {
+            toast({
+                variant: "destructive",
+                title: "Empty Message",
+                description: "Please fill out at least one field to send a message.",
+            });
+            return;
+        }
+        message = messageLines.join('\n');
     }
     
-    // Only generate a message if there's something to say
-    if (messageLines.length <= 1 && formData.attendance !== "Absent") {
-        toast({
-            variant: "destructive",
-            title: "Empty Message",
-            description: "Please fill out at least one field to send a message.",
-        });
-        return;
-    }
-
-    const message = messageLines.join('\n');
-    
-    // Automatically copy the message to clipboard
     navigator.clipboard.writeText(message).then(() => {
         toast({
             title: "Message Copied",
@@ -298,16 +296,16 @@ export function SchoolTalkClient() {
         console.error("Could not copy text: ", err);
     });
 
-    // Rigorous phone number sanitization
-    let sanitizedPhoneNumber = foundStudent.parentWhatsApp.replace(/\D/g, ''); // Strip all non-digits
+    let sanitizedPhoneNumber = foundStudent.parentWhatsApp.replace(/\D/g, '');
     
     if (sanitizedPhoneNumber.startsWith('0020')) {
-      sanitizedPhoneNumber = sanitizedPhoneNumber.substring(2); // -> 20...
+      sanitizedPhoneNumber = sanitizedPhoneNumber.substring(2);
     }
+    
     if (sanitizedPhoneNumber.startsWith('01')) {
-      sanitizedPhoneNumber = '20' + sanitizedPhoneNumber; // -> 2001... should be 201...
+      sanitizedPhoneNumber = '20' + sanitizedPhoneNumber;
     }
-    // Re-check after potential modifications
+    
     if (sanitizedPhoneNumber.startsWith('2001')) {
         sanitizedPhoneNumber = '20' + sanitizedPhoneNumber.substring(3);
     }
