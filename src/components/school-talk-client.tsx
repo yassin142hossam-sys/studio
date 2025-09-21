@@ -287,7 +287,8 @@ export function SchoolTalkClient() {
         message = `${intro}\n\n- ${details}`;
     }
 
-    const url = `whatsapp://send?phone=${foundStudent.parentWhatsApp}&text=${encodeURIComponent(message)}`;
+    const sanitizedPhoneNumber = foundStudent.parentWhatsApp.replace(/\D/g, '');
+    const url = `https://wa.me/${sanitizedPhoneNumber}?text=${encodeURIComponent(message)}`;
     window.open(url, "_blank");
   };
 
