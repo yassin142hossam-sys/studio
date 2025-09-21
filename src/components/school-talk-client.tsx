@@ -288,6 +288,16 @@ export function SchoolTalkClient() {
 
     const message = messageLines.join('\n');
     const encodedMessage = encodeURIComponent(message);
+    
+    // Automatically copy the message to clipboard
+    navigator.clipboard.writeText(message).then(() => {
+        toast({
+            title: "Message Copied",
+            description: "The message has been copied to your clipboard.",
+        });
+    }).catch(err => {
+        console.error("Could not copy text: ", err);
+    });
 
     let sanitizedPhoneNumber = foundStudent.parentWhatsApp.replace(/\D/g, '');
     if (sanitizedPhoneNumber.startsWith('0020')) {
