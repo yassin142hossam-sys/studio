@@ -93,7 +93,7 @@ const AddStudentSchema = z.object({
 const MessageFormSchema = z.object({
     homework: z.string(),
     quiz: z.string(),
-    attendance: z.enum(["On Time", "Late"]).optional(),
+    attendance: z.enum(["On Time", "Late", "Absent"]).optional(),
 });
 
 export function SchoolTalkClient() {
@@ -264,23 +264,28 @@ export function SchoolTalkClient() {
   const handleSendWhatsApp = (data: z.infer<typeof MessageFormSchema>) => {
     if (!foundStudent) return;
     
-    let messageParts: string[] = [];
-    if(data.homework) messageParts.push(`Homework: ${data.homework}`);
-    if(data.quiz) messageParts.push(`Quiz: ${data.quiz}`);
-    if(data.attendance) messageParts.push(`Attendance: ${data.attendance}`);
-
-    if (messageParts.length === 0) {
-        toast({
-            variant: "destructive",
-            title: "Empty Message",
-            description: "Please fill out at least one field to send a message.",
-        });
-        return;
-    }
-    
     const intro = `مع حضرتك اسيستنت Mrs. Hanaa Abdel-Majid بنبلغ حضرتك بأداء الطالب/ة: ${foundStudent.name}`;
-    const details = messageParts.join('\n\n- ');
-    const message = `${intro}\n\n- ${details}`;
+    let message = "";
+
+    if (data.attendance === "Absent") {
+        message = `${intro}\n\n- Attendance: Absent`;
+    } else {
+        let messageParts: string[] = [];
+        if(data.homework) messageParts.push(`Homework: ${data.homework}`);
+        if(data.quiz) messageParts.push(`Quiz: ${data.quiz}`);
+        if(data.attendance) messageParts.push(`Attendance: ${data.attendance}`);
+
+        if (messageParts.length === 0) {
+            toast({
+                variant: "destructive",
+                title: "Empty Message",
+                description: "Please fill out at least one field to send a message.",
+            });
+            return;
+        }
+        const details = messageParts.join('\n\n- ');
+        message = `${intro}\n\n- ${details}`;
+    }
 
     const url = `whatsapp://send?phone=${foundStudent.parentWhatsApp}&text=${encodeURIComponent(message)}`;
     window.open(url, "_blank");
@@ -528,6 +533,14 @@ export function SchoolTalkClient() {
                                         </FormControl>
                                         <FormLabel className="font-normal">
                                         Late
+                                        </FormLabel>
+                                    </FormItem>
+                                    <FormItem className="flex items-center space-x-2 space-y-0">
+                                        <FormControl>
+                                        <RadioGroupItem value="Absent" />
+                                        </FormControl>
+                                        <FormLabel className="font-normal">
+                                        Absent
                                         </FormLabel>
                                     </FormItem>
                                     </RadioGroup>
