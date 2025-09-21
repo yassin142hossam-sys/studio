@@ -73,6 +73,7 @@ import {
   Trash2,
   LogOut,
   KeyRound,
+  Clipboard,
 } from "lucide-react";
 import { RadioGroup, RadioGroupItem } from "./ui/radio-group";
 import { ChangePasswordForm } from "./change-password-form";
@@ -106,6 +107,7 @@ export function SchoolTalkClient() {
   const [isAddingStudent, setIsAddingStudent] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
   const [isPasswordChangeOpen, setIsPasswordChangeOpen] = useState(false);
+  const [generatedMessage, setGeneratedMessage] = useState("");
 
 
   useEffect(() => {
@@ -179,6 +181,37 @@ export function SchoolTalkClient() {
         quiz: "",
     }
   });
+
+  // Effect to update the generated message whenever the form or student changes
+  useEffect(() => {
+    const subscription = messageForm.watch((data) => {
+        if (!foundStudent) {
+            setGeneratedMessage("");
+            return;
+        }
+
+        const intro = `مع حضرتك اسيستنت Mrs. Hanaa Abdel-Majid بنبلغ حضرتك بأداء الطالب/ة: ${foundStudent.name}`;
+        const messageLines: string[] = [intro];
+
+        if (data.attendance === "Absent") {
+            messageLines.push(`- Attendance: Absent`);
+        } else {
+            if(data.homework) messageLines.push(`- Homework: ${data.homework}`);
+            if(data.quiz) messageLines.push(`- Quiz: ${data.quiz}`);
+            if(data.attendance) messageLines.push(`- Attendance: ${data.attendance}`);
+        }
+        
+        // Only generate a message if there's something to say
+        if (messageLines.length > 1) {
+            setGeneratedMessage(messageLines.join('\n'));
+        } else {
+            setGeneratedMessage("");
+        }
+    });
+
+    return () => subscription.unsubscribe();
+  }, [messageForm, foundStudent]);
+
 
   async function onStudentSearch(data: z.infer<typeof StudentSearchSchema>) {
     if (!user) return;
@@ -261,42 +294,35 @@ export function SchoolTalkClient() {
     }
   }
 
-  const handleSendWhatsApp = (data: z.infer<typeof MessageFormSchema>) => {
+  const handleCopyToClipboard = () => {
+    if (!generatedMessage) {
+        toast({
+            variant: "destructive",
+            title: "Empty Message",
+            description: "There is no message to copy. Please fill out the form.",
+        });
+        return;
+    }
+    navigator.clipboard.writeText(generatedMessage);
+    toast({
+        title: "Copied!",
+        description: "The message has been copied to your clipboard.",
+    });
+  };
+
+  const handleOpenWhatsApp = () => {
     if (!foundStudent) return;
     
-    const intro = `مع حضرتك اسيستنت Mrs. Hanaa Abdel-Majid بنبلغ حضرتك بأداء الطالب/ة: ${foundStudent.name}`;
-    const messageLines: string[] = [intro];
-
-    if (data.attendance === "Absent") {
-        messageLines.push(`\n- Attendance: Absent`);
-    } else {
-        if(data.homework) messageLines.push(`\n- Homework: ${data.homework}`);
-        if(data.quiz) messageLines.push(`\n- Quiz: ${data.quiz}`);
-        if(data.attendance) messageLines.push(`\n- Attendance: ${data.attendance}`);
-
-        // Check if any details were added besides the intro
-        if (messageLines.length === 1) {
-            toast({
-                variant: "destructive",
-                title: "Empty Message",
-                description: "Please fill out at least one field to send a message.",
-            });
-            return;
-        }
-    }
-    
-    const message = messageLines.join('');
-
     // Sanitize phone number for WhatsApp
     let sanitizedPhoneNumber = foundStudent.parentWhatsApp.replace(/\D/g, '');
     if (sanitizedPhoneNumber.startsWith('0020')) {
         sanitizedPhoneNumber = sanitizedPhoneNumber.substring(2);
-    }
-    if (sanitizedPhoneNumber.startsWith('01')) {
+    } else if (sanitizedPhoneNumber.startsWith('01')) {
         sanitizedPhoneNumber = '20' + sanitizedPhoneNumber;
     }
     
-    const url = `https://wa.me/${sanitizedPhoneNumber}?text=${encodeURIComponent(message)}`;
+    // Only open the chat, do not pre-fill the message text.
+    const url = `https://wa.me/${sanitizedPhoneNumber}`;
     window.open(url, "_blank");
   };
 
@@ -489,7 +515,7 @@ export function SchoolTalkClient() {
             </CardHeader>
           <CardContent>
             <Form {...messageForm}>
-                <form onSubmit={messageForm.handleSubmit(handleSendWhatsApp)} className="space-y-6">
+                <form className="space-y-6">
                     <FormField
                         control={messageForm.control}
                         name="homework"
@@ -526,7 +552,7 @@ export function SchoolTalkClient() {
                                     <RadioGroup
                                     onValueChange={field.onChange}
                                     defaultValue={field.value}
-                                    className="flex items-center space-x-4"
+                                    className="flex flex-wrap items-center gap-x-4 gap-y-2"
                                     >
                                     <FormItem className="flex items-center space-x-2 space-y-0">
                                         <FormControl>
@@ -558,8 +584,12 @@ export function SchoolTalkClient() {
                             </FormItem>
                         )}
                     />
-                    <CardFooter className="px-0 pt-4 justify-end">
-                        <Button type="submit">
+                    <CardFooter className="px-0 pt-4 flex-col sm:flex-row justify-end gap-2">
+                        <Button type="button" variant="outline" onClick={handleCopyToClipboard} disabled={!generatedMessage}>
+                            <Clipboard />
+                            <span className="ml-2">Copy Message</span>
+                        </Button>
+                        <Button type="button" onClick={handleOpenWhatsApp}>
                             <Send />
                             <span className="ml-2">Send via WhatsApp</span>
                         </Button>
@@ -600,3 +630,5 @@ export function SchoolTalkClient() {
     </div>
   );
 }
+
+    
