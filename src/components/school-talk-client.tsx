@@ -277,7 +277,7 @@ export function SchoolTalkClient() {
     }
     
     // Only generate a message if there's something to say
-    if (messageLines.length <= 1) {
+    if (messageLines.length <= 1 && formData.attendance !== "Absent") {
         toast({
             variant: "destructive",
             title: "Empty Message",
@@ -298,12 +298,18 @@ export function SchoolTalkClient() {
         console.error("Could not copy text: ", err);
     });
 
-    let sanitizedPhoneNumber = foundStudent.parentWhatsApp.replace(/\D/g, '');
+    // Rigorous phone number sanitization
+    let sanitizedPhoneNumber = foundStudent.parentWhatsApp.replace(/\D/g, ''); // Strip all non-digits
+    
     if (sanitizedPhoneNumber.startsWith('0020')) {
-      sanitizedPhoneNumber = sanitizedPhoneNumber.substring(2);
+      sanitizedPhoneNumber = sanitizedPhoneNumber.substring(2); // -> 20...
     }
     if (sanitizedPhoneNumber.startsWith('01')) {
-      sanitizedPhoneNumber = '20' + sanitizedPhoneNumber;
+      sanitizedPhoneNumber = '20' + sanitizedPhoneNumber; // -> 2001... should be 201...
+    }
+    // Re-check after potential modifications
+    if (sanitizedPhoneNumber.startsWith('2001')) {
+        sanitizedPhoneNumber = '20' + sanitizedPhoneNumber.substring(3);
     }
     
     const encodedMessage = encodeURIComponent(message);
