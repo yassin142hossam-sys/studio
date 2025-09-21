@@ -287,7 +287,15 @@ export function SchoolTalkClient() {
         message = `${intro}\n\n- ${details}`;
     }
 
-    const sanitizedPhoneNumber = foundStudent.parentWhatsApp.replace(/\D/g, '');
+    // Sanitize phone number for WhatsApp
+    let sanitizedPhoneNumber = foundStudent.parentWhatsApp.replace(/\D/g, '');
+    if (sanitizedPhoneNumber.startsWith('0020')) {
+        sanitizedPhoneNumber = sanitizedPhoneNumber.substring(2);
+    }
+    if (sanitizedPhoneNumber.startsWith('01')) {
+        sanitizedPhoneNumber = '20' + sanitizedPhoneNumber;
+    }
+    
     const url = `https://wa.me/${sanitizedPhoneNumber}?text=${encodeURIComponent(message)}`;
     window.open(url, "_blank");
   };
@@ -422,7 +430,7 @@ export function SchoolTalkClient() {
                             <FormItem>
                                 <FormLabel>Parent's WhatsApp Number</FormLabel>
                                 <FormControl>
-                                    <Input placeholder="e.g., +1234567890" {...field} />
+                                    <Input placeholder="e.g., +201234567890" {...field} />
                                 </FormControl>
                                 <FormMessage />
                             </FormItem>
@@ -578,7 +586,8 @@ export function SchoolTalkClient() {
                     </div>
                     <Button variant="ghost" size="sm" onClick={() => {
                         studentSearchForm.setValue('studentCode', s.code);
-                        studentSearchForm.handleSubmit(onStudentSearch)();
+                        onStudentSearch({ studentCode: s.code });
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
                     }}>
                         View
                     </Button>
