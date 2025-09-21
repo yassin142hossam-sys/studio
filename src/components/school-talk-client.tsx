@@ -287,13 +287,12 @@ export function SchoolTalkClient() {
     }
 
     const message = messageLines.join('\n');
-    const encodedMessage = encodeURIComponent(message);
     
     // Automatically copy the message to clipboard
     navigator.clipboard.writeText(message).then(() => {
         toast({
             title: "Message Copied",
-            description: "The message has been copied to your clipboard.",
+            description: "The message has been copied to your clipboard. You can paste it if needed.",
         });
     }).catch(err => {
         console.error("Could not copy text: ", err);
@@ -301,11 +300,13 @@ export function SchoolTalkClient() {
 
     let sanitizedPhoneNumber = foundStudent.parentWhatsApp.replace(/\D/g, '');
     if (sanitizedPhoneNumber.startsWith('0020')) {
-        sanitizedPhoneNumber = sanitizedPhoneNumber.substring(2);
-    } else if (sanitizedPhoneNumber.startsWith('01')) {
-        sanitizedPhoneNumber = '20' + sanitizedPhoneNumber;
+      sanitizedPhoneNumber = sanitizedPhoneNumber.substring(2);
+    }
+    if (sanitizedPhoneNumber.startsWith('01')) {
+      sanitizedPhoneNumber = '20' + sanitizedPhoneNumber;
     }
     
+    const encodedMessage = encodeURIComponent(message);
     const url = `https://wa.me/${sanitizedPhoneNumber}?text=${encodedMessage}`;
     window.open(url, "_blank");
   };
