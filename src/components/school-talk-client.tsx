@@ -265,17 +265,17 @@ export function SchoolTalkClient() {
     if (!foundStudent) return;
     
     const intro = `مع حضرتك اسيستنت Mrs. Hanaa Abdel-Majid بنبلغ حضرتك بأداء الطالب/ة: ${foundStudent.name}`;
-    let message = "";
+    const messageLines: string[] = [intro];
 
     if (data.attendance === "Absent") {
-        message = `${intro}\n\n- Attendance: Absent`;
+        messageLines.push(`\n- Attendance: Absent`);
     } else {
-        let messageParts: string[] = [];
-        if(data.homework) messageParts.push(`Homework: ${data.homework}`);
-        if(data.quiz) messageParts.push(`Quiz: ${data.quiz}`);
-        if(data.attendance) messageParts.push(`Attendance: ${data.attendance}`);
+        if(data.homework) messageLines.push(`\n- Homework: ${data.homework}`);
+        if(data.quiz) messageLines.push(`\n- Quiz: ${data.quiz}`);
+        if(data.attendance) messageLines.push(`\n- Attendance: ${data.attendance}`);
 
-        if (messageParts.length === 0) {
+        // Check if any details were added besides the intro
+        if (messageLines.length === 1) {
             toast({
                 variant: "destructive",
                 title: "Empty Message",
@@ -283,9 +283,9 @@ export function SchoolTalkClient() {
             });
             return;
         }
-        const details = messageParts.join('\n\n- ');
-        message = `${intro}\n\n- ${details}`;
     }
+    
+    const message = messageLines.join('');
 
     // Sanitize phone number for WhatsApp
     let sanitizedPhoneNumber = foundStudent.parentWhatsApp.replace(/\D/g, '');
